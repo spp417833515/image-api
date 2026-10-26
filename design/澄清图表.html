@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>生图入口 · 澄清图表（目的清单）</title>
+<style>
+  :root {
+    --bg: #e7edf2; --surface: #f4f7f9; --card: #fff; --ink: #1a2836; --secondary: #4d5d6c; --muted: #6d7c8a;
+    --line: #c5d0da; --line-soft: #dbe3ea; --accent: #1f4e79; --accent-soft: #e4eef6;
+    --danger: #8d2f2f; --danger-soft: #f6e8e8; --warn: #7a5200; --warn-soft: #f8f0da; --warn-line: #e3d19b;
+    --ok: #2b6b4f; --ok-soft: #e3f1ea;
+    --t2i: #1f4e79; --ref: #1d6a6a; --mask: #6b3f7a;
+    --radius: 8px; --pad: 24px;
+    --font: "Noto Sans SC", "Source Han Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+    --mono: "IBM Plex Mono", "Source Code Pro", ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--bg); }
+  body { margin: 0; color: var(--ink); font: 16px / 1.55 var(--font); background: var(--bg); }
+  main { max-width: 1040px; margin: 0 auto; padding: 48px 24px 80px; }
+  h1, h2, h3, p, ul, ol { margin: 0; }
+  code, .mono { font-family: var(--mono); font-size: 0.92em; }
+  .kicker { color: var(--muted); font-size: 13px; letter-spacing: 0.04em; }
+  h1 { margin-top: 6px; font-size: 32px; line-height: 1.25; font-weight: 600; letter-spacing: -0.02em; }
+  h2 { margin: 56px 0 6px; font-size: 22px; line-height: 1.3; font-weight: 600; }
+  h2 + .sub { margin-bottom: 16px; color: var(--secondary); font-size: 14px; }
+  .group { margin: 28px 0 10px; color: var(--muted); font-size: 13px; letter-spacing: 0.06em; }
+
+  .tag { display: inline-block; padding: 1px 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .tag.ok { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+  .tag.warn { border-color: var(--warn-line); background: var(--warn-soft); color: var(--warn); }
+  .tag.no { border-color: var(--danger); background: var(--danger-soft); color: var(--danger); }
+  .status-line { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 12px; color: var(--secondary); font-size: 14px; }
+
+  .one { margin-top: 20px; padding: 20px 24px; border: 1px solid var(--accent); border-radius: var(--radius); background: var(--accent-soft); font-size: 18px; line-height: 1.55; }
+  .one b { font-weight: 600; }
+  .one small { display: block; margin-top: 8px; color: var(--secondary); font-size: 13px; }
+
+  /* 目的清单 */
+  .goal { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 4px 16px; margin-top: 12px; padding: 18px 20px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+  .goal .no { grid-row: span 3; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: var(--ink); color: #fff; font-size: 14px; font-weight: 600; }
+  .goal h3 { font-size: 18px; font-weight: 600; line-height: 1.35; }
+  .goal .st { grid-row: 1; grid-column: 3; align-self: start; }
+  .goal .desc { grid-column: 2 / span 2; color: var(--secondary); font-size: 15px; }
+  .goal .body { grid-column: 2 / span 2; display: grid; gap: 10px; margin-top: 8px; }
+  .goal ul { padding: 0; list-style: none; font-size: 14px; }
+  .goal ul li { position: relative; margin-top: 4px; padding-left: 24px; }
+  .goal ul li::before { content: "☐"; position: absolute; left: 2px; top: 0; color: var(--accent); }
+  .goal .lab { margin-bottom: 2px; color: var(--muted); font-size: 12px; letter-spacing: 0.04em; }
+  .goal .quote { padding: 8px 12px; border-left: 3px solid var(--line); background: var(--card); color: var(--secondary); font-size: 13px; }
+
+  /* 图 */
+  .fig { margin-top: 16px; padding: 20px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); }
+  .fig > .cap { margin-bottom: 12px; font-size: 15px; font-weight: 600; }
+  .fig > .note { margin-top: 12px; color: var(--secondary); font-size: 13px; }
+  svg { display: block; width: 100%; height: auto; }
+  svg text { font-family: var(--font); fill: var(--ink); font-size: 14px; }
+  svg .h { font-size: 15px; font-weight: 600; }
+  svg .m { fill: var(--muted); font-size: 12.5px; }
+  svg .bad { fill: var(--danger); font-size: 12.5px; }
+  svg .box { fill: var(--surface); stroke: var(--line); stroke-width: 1.2; }
+  svg .box.in { fill: var(--accent-soft); stroke: var(--accent); }
+  svg .box.out { fill: var(--ok-soft); stroke: var(--ok); }
+  svg .route { fill: var(--card); stroke-width: 1.6; }
+  svg .arrow { fill: none; stroke: var(--secondary); stroke-width: 1.5; marker-end: url(#ah); }
+  svg .loop { fill: none; stroke: var(--accent); stroke-width: 1.6; stroke-dasharray: 6 5; marker-end: url(#ahb); }
+  svg .ahp { fill: var(--secondary); } svg .ahb { fill: var(--accent); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { padding: 10px 12px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-size: 13px; font-weight: 500; }
+  table.matrix { table-layout: fixed; text-align: center; }
+  table.matrix th, table.matrix td { text-align: center; vertical-align: middle; }
+  table.matrix th.row { width: 22%; text-align: left; color: var(--ink); font-weight: 600; font-size: 14px; }
+  table.matrix td { height: 84px; border: 1px solid var(--line); }
+  table.matrix td b { display: block; font-size: 17px; }
+  table.matrix td span { display: block; margin-top: 2px; color: var(--secondary); font-size: 13px; font-weight: 400; }
+  td.r-t2i { background: #e4eef6; color: var(--t2i); } td.r-ref { background: #e0f0ee; color: var(--ref); } td.r-mask { background: #efe6f2; color: var(--mask); }
+  td.r-no { background: var(--danger-soft); color: var(--danger); }
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); font-size: 13px; font-weight: 600; white-space: nowrap; }
+  .pill i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .pill.t2i i { background: var(--t2i); } .pill.ref i { background: var(--ref); } .pill.mask i { background: var(--mask); }
+
+  .layers { display: grid; gap: 8px; }
+  .layer { display: grid; grid-template-columns: 120px minmax(0, 1fr) 190px; gap: 16px; align-items: center; padding: 14px 18px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+  .layer b { font-size: 16px; }
+  .layer b small { display: block; color: var(--muted); font-weight: 400; font-size: 12px; }
+  .layer p { color: var(--secondary); font-size: 14px; }
+  .layer .rule { color: var(--accent); font-size: 13px; font-weight: 600; }
+  .down { text-align: center; color: var(--muted); font-size: 13px; }
+  .chev { display: flex; flex-wrap: wrap; align-items: stretch; gap: 8px; margin-top: 14px; }
+  .chev > div { flex: 1 1 180px; padding: 10px 14px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); font-size: 13px; color: var(--secondary); }
+  .chev > div b { display: block; color: var(--ink); font-size: 14px; }
+  .chev > span { align-self: center; color: var(--muted); }
+
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .two > div { padding: 18px 20px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+  .two h3 { margin-bottom: 8px; font-size: 16px; font-weight: 600; }
+  .two ul { padding-left: 1.2em; font-size: 14px; }
+  .two li { margin: 5px 0; }
+  .two li small { color: var(--muted); }
+  .facts { padding: 0; list-style: none; font-size: 14px; }
+  .facts li { position: relative; margin-top: 8px; padding-left: 26px; }
+  .facts li::before { content: "✔"; position: absolute; left: 4px; color: var(--ok); }
+  .facts li.diff::before { content: "≠"; color: var(--warn); font-weight: 700; }
+  .facts small { color: var(--muted); }
+  .ask td:first-child { width: 36px; color: var(--muted); }
+  .ask td b { font-weight: 600; }
+  .foot { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+  @media (max-width: 760px) { .two { grid-template-columns: 1fr; } .layer { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <p class="kicker">澄清图表 · 目的清单 · 2026-10-26</p>
+  <h1>生图入口：我要什么</h1>
+  <div class="status-line"><span class="tag warn">待你确认</span><span>尚未写入 ppwiki（本会话没连上 ppwiki）；你确认后归档并锁定。</span></div>
+  <div class="one">
+    <b>一句话目的：</b>给本机 ComfyUI（Qwen-Image-2.1 无审 INT8，RTX 3090）做一个「傻瓜式」生图入口——用户只给输入（指令、图、蒙版），程序<b>只看这些字段</b>自动选对工作流；多步时可以把上一步的图接给下一步。
+    <small>来源：你今天的几段话（原话附在每条后面）+ 桌面《生图路由方案.html》里已锁定的规则。「已定」= 你明确说过或方案页已锁定；「待确认」= 我的理解或我补的细节，需要你点头。</small>
+  </div>
+</header>
+
+<h2 id="goals">目的清单</h2>
+<p class="sub">每一条都写成「做到什么算数」，验收时逐条勾。</p>
+
+<p class="group">一、要做成什么</p>
+
+<article class="goal">
+  <span class="no">1</span><h3>一个入口，傻瓜式</h3><span class="st tag ok">已定</span>
+  <p class="desc">把文生图、1–4 张参考图编辑、蒙版局部改写三条工作流封装成<b>一个</b>智能入口。用户不选模板，也不用懂有几条工作流。</p>
+  <div class="body">
+    <div><p class="lab">做到的标志</p><ul><li>同一个入口，只换输入就能走三条路</li><li>调用者不需要知道底层是 ComfyUI 的哪个工作流</li></ul></div>
+    <p class="quote">「封装为一个智能API 根据用户输入 自动路由！用户(傻瓜式自动) -&gt; 中间自动解析路由 -&gt; 底层 ComfyUI 工作流」</p>
+  </div>
+</article>
+
+<article class="goal">
+  <span class="no">2</span><h3>只看输入项来路由</h3><span class="st tag ok">已定</span>
+  <p class="desc">只检测请求里<b>实际带了什么</b>：几张图、有没有蒙版。不读指令里的「然后」「再」「只改衣服」去猜工作流；指令原样交给底模。先前「看到然后、再就拆句」的版本作废。</p>
+  <div class="body">
+    <div><p class="lab">做到的标志</p><ul><li>路由表每一行都有断言：0 张、1 张、4 张、5 张、只有蒙版、图加蒙版、<code>$prev</code> 再加 4 张</li><li>换一句指令（图和蒙版不变），走的路由不变</li></ul></div>
+    <p class="quote">「我们检测用户输入项 给他路由到正确的工作流中即可」</p>
+  </div>
+</article>
+
+<article class="goal">
+  <span class="no">3</span><h3>三条底层工作流</h3><span class="st tag ok">已定</span>
+  <p class="desc">文生图（0 张图）· 参考图编辑（1–4 张图，画布跟第 1 张）· 蒙版改写（白区重画，其余保持）。用现有 Qwen-Image-2.1 无审 INT8，<b>不改 ComfyUI 本体</b>。</p>
+  <div class="body">
+    <div><p class="lab">做到的标志</p><ul><li>三条各自能向运行中的 ComfyUI 提交并取回一张图</li><li>赤狐文生图、一张参考图、一张图加白蒙版，返回的 <code>route</code> 与路由表一致</li><li>蒙版那条依赖还没下载的控制权重（见最后「待你确认」第 2 条）</li></ul></div>
+    <p class="quote">「1. 文生图 2. 图生图支持1-4长参考图 3. 蒙版局部改写」</p>
+  </div>
+</article>
+
+<article class="goal">
+  <span class="no">4</span><h3>多步组合：用 A 的结果处理 B</h3><span class="st tag ok">已定</span>
+  <p class="desc">一次请求里可以排多步，每步仍按自己的字段路由。只有某一步写了 <code>$prev</code>，才把上一步的图接进来；后一步不会自动继承。<code>$prev</code> 算 1 张图。</p>
+  <div class="body">
+    <div><p class="lab">做到的标志</p><ul><li>第 1 步文生图得到 A；第 2 步写 <code>$prev</code> + 换装指令 → 参考图编辑；再带蒙版 → 蒙版改写（底图是 A）；既没图也没 <code>$prev</code> → 仍是一次新的文生图</li></ul></div>
+    <p class="quote">「支持组合工作流 比如先处理A 用A结果处理B！」</p>
+  </div>
+</article>
+
+<p class="group">二、做不到时怎么办 · 边界</p>
+
+<article class="goal" id="g5">
+  <span class="no">5</span><h3>失败要说清楚：不悄悄丢，不悄悄猜</h3><span class="st tag ok">已定</span>
+  <p class="desc">超过 4 张图（含 <code>$prev</code>）拒绝；有蒙版没底图拒绝；全黑蒙版拒绝。某一步失败就停下，响应写明第几步和 ComfyUI 的错误原文，后面的步骤不跑。</p>
+  <div class="body">
+    <div><p class="lab">做到的标志</p><ul><li>ComfyUI 没开时返回 503</li><li>蒙版权重文件不在时返回 503，并写明缺哪个文件</li><li>某步失败时，响应里有步号和 ComfyUI 的错误原文</li></ul></div>
+    <p class="quote">方案页：「第 5 张直接拒绝，不悄悄丢掉」「某一步失败就停下，响应里写第几步和 ComfyUI 的错误原文」</p>
+  </div>
+</article>
+
+<article class="goal">
+  <span class="no">6</span><h3>范围边界</h3><span class="st tag ok">已定</span>
+  <p class="desc">角色设定卡不进这个入口；已经卸掉的本地语言模型不参与路由；采样固定（25 步、euler、simple、CFG 1）；宽高不是 32 的倍数就就近取整并回报实际尺寸；参考图和蒙版底图长边超过 1920 先缩小；文生图默认 1024×1024。</p>
+  <div class="body">
+    <p class="quote">方案页：「角色设定卡不进这个入口。已经卸掉的本地语言模型不参与路由。」</p>
+  </div>
+</article>
+
+<p class="group">三、怎么交付</p>
+
+<article class="goal">
+  <span class="no">7</span><h3>有一个能直接用的界面（先设计 UI）</h3><span class="st tag warn">方向已定 · 形态待选</span>
+  <p class="desc">浏览器里填指令、放图、涂蒙版、排步骤，并<b>实时看到每一步会走哪条路由、为什么被拒</b>；程序也能调同一个接口。你选定的 UI 模板就是界面验收标准。</p>
+  <div class="body">
+    <div><p class="lab">做到的标志</p><ul><li>页面与选定模板一致，覆盖：空白、三条路由、被拒、运行中、完成、503（没开 / 缺文件）、某步失败</li><li>页面上显示的路由来自后端，页面自己不重算一遍规则（一个规则一个实现）</li></ul></div>
+    <p class="quote">「先设计UI」「直接出方案和UI模板」</p>
+  </div>
+</article>
+
+<article class="goal" id="g8">
+  <span class="no">8</span><h3>模块化分层架构</h3><span class="st tag warn">方向已定 · 划分待你过目</span>
+  <p class="desc">界面 → 业务组装 → 底层逻辑封装；依赖只能向下。一个事实一个来源，路由规则只在业务层有一份。</p>
+  <div class="body">
+    <div><p class="lab">做到的标志</p><ul><li>用自动检查盯住依赖方向（沿用 clash-pilot 的 <code>test_layering</code> 做法）</li><li>每个文件一个职责，没有超大文件</li></ul></div>
+    <p class="quote">「先设计UI 然后设计底层逻辑封装 业务组装 模块化分层架构」</p>
+  </div>
+</article>
+
+<article class="goal">
+  <span class="no">9</span><h3>做事方式</h3><span class="st tag ok">已定</span>
+  <p class="desc">项目建在桌面 <code>image-api</code>（方案页写的是 <code>/home/spp/image-api</code>，按你后来说的改到桌面）。不确定的先沟通，其余直接做：方案 → UI → 底层逻辑 → 业务组装 → 验收；方案与澄清归档 ppwiki。</p>
+  <div class="body">
+    <div><p class="lab">做到的标志</p><ul><li>目录已建；ppwiki MCP 由你安装，对话转入后归档本图表</li></ul></div>
+    <p class="quote">「必须桌面先创建一个项目目录 然后我才能安装ppwiki mcp 插件 和把你的对话转移进去」「我们可以直接制定方案…设计UI 进行编码」</p>
+  </div>
+</article>
+
+<h2 id="figs">一张图看懂</h2>
+<p class="sub">下面四张图只是把上面的目的画出来，没有新增要求。</p>
+
+<section class="fig">
+  <p class="cap">① 总览：输入 → 只看字段 → 三条工作流 → ComfyUI → 出图（虚线是 <code>$prev</code>）</p>
+  <svg viewBox="0 0 1000 410" role="img" aria-label="总览流程图">
+    <defs>
+      <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 L10 5 L0 10 z" class="ahp"/></marker>
+      <marker id="ahb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 L10 5 L0 10 z" class="ahb"/></marker>
+    </defs>
+    <rect class="box in" x="16" y="96" width="200" height="192" rx="8"/>
+    <text class="h" x="32" y="126">你给的输入</text>
+    <text x="32" y="156">① 指令（必填）</text>
+    <text x="32" y="184">② 图 0–4 张</text>
+    <text x="32" y="212">③ 蒙版（可空）</text>
+    <text x="32" y="240">④ steps（可空）</text>
+    <text class="m" x="32" y="268">每一步都是前三项</text>
+
+    <path class="arrow" d="M216 192 H264"/>
+
+    <rect class="box" x="268" y="128" width="190" height="128" rx="8"/>
+    <text class="h" x="284" y="158">只看字段</text>
+    <text x="284" y="184">几张图 · 有无蒙版</text>
+    <text class="bad" x="284" y="214">✗ 不读「然后」「再」</text>
+    <text class="bad" x="284" y="236">✗ 不用语言模型</text>
+
+    <path class="arrow" d="M458 192 C 490 192, 490 74, 518 74"/>
+    <path class="arrow" d="M458 192 H518"/>
+    <path class="arrow" d="M458 192 C 490 192, 490 310, 518 310"/>
+
+    <rect class="route" x="520" y="36" width="212" height="76" rx="8" style="stroke: var(--t2i)"/>
+    <text class="h" x="536" y="62">文生图</text><text x="536" y="84">0 张图，无蒙版</text><text class="m" x="536" y="102">空画布出图</text>
+    <rect class="route" x="520" y="154" width="212" height="76" rx="8" style="stroke: var(--ref)"/>
+    <text class="h" x="536" y="180">参考图编辑</text><text x="536" y="202">1–4 张图，无蒙版</text><text class="m" x="536" y="220">画布跟第 1 张图</text>
+    <text class="m" x="520" y="250" style="fill: var(--danger)">0 张有蒙版 / 超过 4 张 → 422 拒绝</text>
+    <rect class="route" x="520" y="272" width="212" height="76" rx="8" style="stroke: var(--mask)"/>
+    <text class="h" x="536" y="298">蒙版改写</text><text x="536" y="320">≥1 张图，有蒙版</text><text class="m" x="536" y="338">白区重画，其余保持</text>
+
+    <path class="arrow" d="M732 74 C 762 74, 762 162, 790 162"/>
+    <path class="arrow" d="M732 192 H790"/>
+    <path class="arrow" d="M732 310 C 762 310, 762 222, 790 222"/>
+
+    <rect class="box" x="792" y="124" width="192" height="136" rx="8"/>
+    <text class="h" x="808" y="152">ComfyUI</text>
+    <text x="808" y="178">127.0.0.1:8188</text>
+    <text x="808" y="202">Qwen-Image-2.1 无审</text>
+    <text class="m" x="808" y="226">INT8 · RTX 3090 · 不改本体</text>
+
+    <path class="arrow" d="M888 260 V296"/>
+    <rect class="box out" x="792" y="298" width="192" height="72" rx="8"/>
+    <text class="h" x="808" y="326">一张图</text>
+    <text class="m" x="808" y="350">route · 实际尺寸 · seed</text>
+
+    <path class="loop" d="M888 370 V392 H116 V292"/>
+    <text x="300" y="384" style="fill: var(--accent)"><tspan font-weight="600">$prev</tspan>：这一步写了才把上一步的图接进来，不写不接</text>
+  </svg>
+</section>
+
+<section class="fig" id="fig2">
+  <p class="cap">② 路由矩阵：每一步只按「图几张 × 有没有蒙版」选一格</p>
+  <table class="matrix">
+    <thead><tr><th></th><th>无蒙版</th><th>有蒙版</th></tr></thead>
+    <tbody>
+      <tr><th class="row">0 张图</th><td class="r-t2i"><b>文生图</b><span>空画布，默认 1024×1024</span></td><td class="r-no"><b>422 拒绝</b><span>没有底图可改</span></td></tr>
+      <tr><th class="row">1–4 张图</th><td class="r-ref"><b>参考图编辑</b><span>画布跟第 1 张图</span></td><td class="r-mask"><b>蒙版改写</b><span>第 1 张是底图，其余是参考；白区重画</span></td></tr>
+      <tr><th class="row">超过 4 张</th><td class="r-no"><b>422 拒绝</b><span>不悄悄丢掉多出来的图</span></td><td class="r-no"><b>422 拒绝</b><span>同左</span></td></tr>
+    </tbody>
+  </table>
+  <p class="note">张数含 <code>$prev</code>（它算 1 张）。指令写什么不影响选哪一格。另外：指令为空、全黑蒙版同样拒绝。</p>
+</section>
+
+<section class="fig">
+  <p class="cap">③ 组合示例：第 1 步文生图得到图 A，第 2 步写什么就走什么</p>
+  <p style="margin-bottom: 10px; font-size: 14px"><span class="pill t2i"><i></i>第 1 步 文生图</span> <span style="color: var(--muted)">→ 得到图 A →</span> <span style="color: var(--secondary)">第 2 步的字段决定它怎么用 A：</span></p>
+  <table>
+    <thead><tr><th>第 2 步写了什么</th><th>程序看到</th><th>走哪条</th><th>用不用 A</th></tr></thead>
+    <tbody>
+      <tr><td><code>images: ["$prev"]</code> + 换装指令</td><td>1 张图，无蒙版</td><td><span class="pill ref"><i></i>参考图编辑</span></td><td>用，A 是第 1 张，画布跟 A</td></tr>
+      <tr><td><code>images: ["$prev"]</code> + 蒙版 + 指令</td><td>1 张图，有蒙版</td><td><span class="pill mask"><i></i>蒙版改写</span></td><td>用，A 是底图，白区重画</td></tr>
+      <tr><td>只有指令，没图也没 <code>$prev</code></td><td>0 张图，无蒙版</td><td><span class="pill t2i"><i></i>文生图</span></td><td>不用，是一次新的出图</td></tr>
+    </tbody>
+  </table>
+  <p class="note">某一步失败就停下：响应写第几步和 ComfyUI 的错误原文，后面的步骤不跑，前面已出的图保留。</p>
+</section>
+
+<section class="fig" id="fig4">
+  <p class="cap">④ 分层与做事顺序（依赖只能向下；沿用 clash-pilot 的三层写法）</p>
+  <div class="layers">
+    <div class="layer"><b>界面层<small>web</small></b><p>浏览器页面（填指令 / 放图 / 涂蒙版 / 排步骤 / 看路由和结果）+ HTTP 接口（取参数 → 调业务 → 回结果）</p><span class="rule">不含业务规则</span></div>
+    <div class="down">↓ 只能向下调用</div>
+    <div class="layer"><b>业务层<small>biz</small></b><p>路由表与限制（唯一一份）· 请求规划与校验 · 逐步执行（<code>$prev</code>、失败即停）· 可用性检查（ComfyUI 在不在、缺哪个文件）</p><span class="rule">唯一的规则来源</span></div>
+    <div class="down">↓</div>
+    <div class="layer"><b>逻辑层<small>logic</small></b><p>ComfyUI 客户端 · 三张工作流图的构造 · 图像处理（缩小 / 取整 / 蒙版检查）· 图片存取</p><span class="rule">不知道谁在调用</span></div>
+  </div>
+  <div class="chev">
+    <div><b>① 定 UI 模板</b>你选一套，成为界面验收标准</div><span>→</span>
+    <div><b>② 底层逻辑封装</b>可与 ① 并行</div><span>→</span>
+    <div><b>③ 业务组装</b>在 ①② 之后</div><span>→</span>
+    <div><b>④ 真链路验收</b>真 ComfyUI、不用 mock</div>
+  </div>
+  <p class="note">团队没有在认领任务，所以由我调度子 Agent 执行，每条线都有另一个 Agent 独立审查。</p>
+</section>
+
+<h2>改前 → 改后</h2>
+<table>
+  <thead><tr><th></th><th>现在</th><th>改后</th></tr></thead>
+  <tbody>
+    <tr><td>入口</td><td>浏览器里自己选模板</td><td>一个入口（页面 + 同一个接口）</td></tr>
+    <tr><td>选择</td><td>人看材料再点工作流</td><td>程序只看字段</td></tr>
+    <tr><td>组合</td><td>人手动把上一张图再丢进去</td><td>多步里写 <code>$prev</code></td></tr>
+    <tr><td>出错</td><td>ComfyUI 界面里的红框</td><td>422 / 503 / 502，带步号和 ComfyUI 原文</td></tr>
+    <tr><td>看路由</td><td>没有</td><td>页面实时显示每步走哪条、为什么被拒</td></tr>
+    <tr><td>代码位置</td><td>ComfyUI 本体</td><td>新项目 <code>image-api</code>，不改 ComfyUI</td></tr>
+  </tbody>
+</table>
+
+<h2 id="scope">范围</h2>
+<div class="two" style="margin-top: 16px">
+  <div>
+    <h3>本期做</h3>
+    <ul>
+      <li>一个入口 + 三条路由 + 多步 <code>$prev</code></li>
+      <li>明确的失败（422 / 503 / 步骤失败）</li>
+      <li>浏览器页面：实时看路由、涂蒙版、看进度和结果</li>
+      <li>分层结构 + 依赖方向自动检查</li>
+      <li>对真 ComfyUI 的验收</li>
+    </ul>
+  </div>
+  <div>
+    <h3>本期不做</h3>
+    <ul>
+      <li>角色设定卡工作流（留在 ComfyUI 里） <small>已定</small></li>
+      <li>语言模型、自动拆句、提示词改写 <small>已定</small></li>
+      <li>改 ComfyUI 本体 <small>已定</small></li>
+      <li>Turbo 8 步版、LoRA、一次多张 <small>建议</small></li>
+      <li>登录 / 令牌、取消按钮、图片清理、打包发布 <small>建议</small></li>
+      <li>给 Agent 当工具（MCP）的封装 <small>建议；以后可在业务层上再加一个入口</small></li>
+    </ul>
+  </div>
+</div>
+
+<h2 id="facts">已核实的事实</h2>
+<p class="sub">2026-10-26 在本机核对，支撑上面的目的能落地。</p>
+<ul class="facts">
+  <li>ComfyUI 0.42.0 正在 <code>127.0.0.1:8188</code> 运行；接收 <code>/prompt</code> 的位置在 <code>server.py</code> 第 1164 行，与方案页一致。</li>
+  <li>底模（无审 INT8）、Qwen3-VL 编码器、VAE 都在，文生图已跑通。实测耗时：1024×1024 用 18.9 s，1536×864 用 19.3 s，1920×1088 用 28.6 s。<small>〔ComfyUI 的 /history〕</small></li>
+  <li>蒙版权重 <code>qwen_image_2.1_fun_controlnet_union_int8_convrot.safetensors</code> 不在本机（<code>models/model_patches/</code> 为空）；官方仓库 <code>Comfy-Org/Qwen-Image-2.1</code> 有，INT8 版 3.78 GB。</li>
+  <li>蒙版语义与方案一致：源码里亮度 ≥ 0.5 的区域重画。<small>〔<code>QwenImage21FunControlPatch</code>〕</small></li>
+  <li>参考图编辑节点一次最多收 16 张图，限 4 张是你定的产品规则；画布取第 1 张参考图的尺寸（节点说明：换别的尺寸会让编辑偏移）。</li>
+  <li class="diff">与方案页有出入（待实测）：方案页写蒙版用 <code>QwenImageDiffsynthControlnet</code>；本机版本里它只有 <code>image</code> 和 <code>mask</code> 两个输入，没有 <code>inpaint_image</code>；<code>ZImageFunControlnet</code> 有（说明写明支持 Qwen Image 2.1 Fun ControlNet）。权重到手后两种接法都测，以「蒙版外保持」为准。</li>
+</ul>
+
+<h2 id="ask">待你确认</h2>
+<p class="sub">每条都带我的建议；你没意见就按建议走。</p>
+<table class="ask">
+  <thead><tr><th>#</th><th>要你定的</th><th>为什么影响结果</th><th>我的建议</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td><b>UI 用哪一套</b>：A 表单页 / B 对话式 / C 工作台</td><td>选定的成为界面验收标准</td><td>A（字段、路由、多步一页看完）。B 最简单，但页面上排不了多步；C 最强，前端工作量预计约 2 倍于 A（按组件数和是否含大画布估，未实测）。A、B 已做出来放在 <code>design/a.html</code>、<code>b.html</code>，C 因你叫停没做。</td></tr>
+    <tr><td>2</td><td><b>现在下载蒙版权重吗</b>（3.78 GB）</td><td>不下就验证不了蒙版这条路，目的 3 的验收做不完</td><td>现在下（官方仓库，INT8）。</td></tr>
+    <tr><td>3</td><td><b>蒙版「其余保持」要到什么程度</b></td><td>整张图会重新生成再解码，白区之外预计有轻微漂移（待实测）</td><td>先按模型输出；实测漂移明显再加「白区以外贴回原图」。</td></tr>
+    <tr><td>4</td><td><b>蒙版和底图尺寸不一致</b>怎么办</td><td>方案页没写</td><td>拒绝（422，写明两个尺寸），不自动缩放。</td></tr>
+    <tr><td>5</td><td><b>带图的步骤又填了宽高</b>怎么办</td><td>带图时画布跟第 1 张图，宽高没有意义</td><td>拒绝，不悄悄忽略。</td></tr>
+    <tr><td>6</td><td><b>补两个可选输入</b>：<code>seed</code>、<code>width</code> / <code>height</code>（仅文生图）</td><td>方案页有「宽高取整」规则，但输入表里没列这两个字段；复现一张图需要 seed</td><td>补上；seed 不填则随机，响应里回报实际值。</td></tr>
+  </tbody>
+</table>
+
+<p class="foot">本页是澄清图表草稿，文件位置 <code>image-api/design/澄清图表.html</code>。你确认后，我把同样内容写进 ppwiki 澄清记录并锁定（流程图转 Mermaid）；ppwiki 装好之前先以本页为准。</p>
+</main>
+</body>
+</html>

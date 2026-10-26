@@ -1,0 +1,6 @@
+{
+  "_comment": "Minimum collected count per suite (guards against tests silently vanishing). Updated with `gate.py floors --raise` (raise only, never lower); to lower one, hand-edit and give the reason in the commit message.",
+  "unit": 18,
+  "live": 0,
+  "live-versions": 0
+}

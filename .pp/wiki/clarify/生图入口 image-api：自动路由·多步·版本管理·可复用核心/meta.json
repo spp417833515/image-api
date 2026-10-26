@@ -1,0 +1,291 @@
+{
+  "id": "clarify/生图入口 image-api：自动路由·多步·版本管理·可复用核心",
+  "type": "clarify",
+  "status": "locked",
+  "entries": [
+    {
+      "seq": 1,
+      "type": "requirement",
+      "layer": "业务层",
+      "requirement": {
+        "text": "封装为一个智能API 根据用户输入 自动路由！用户(傻瓜式自动) -> 中间自动解析路由 -> 底层 ComfyUI 工作流；我们检测用户输入项 给他路由到正确的工作流中即可",
+        "source": "user",
+        "at": "2026-10-26T10:28:28.556163+00:00"
+      },
+      "negotiations": [
+        {
+          "seq": 1,
+          "question": "要不要补两个可选输入 seed、width/height（仅文生图）？",
+          "answer": "同意建议：补上；seed 不填随机并回报实际值。（用户对完整方案回复「同意」，2026-10-26）",
+          "decision": "补 seed（不填随机，回报实际值）与 width/height（仅文生图，非 32 倍数就近取整并回报）",
+          "status": "decided",
+          "at": "2026-10-26T10:31:00.410306+00:00",
+          "answered_at": "2026-10-26T10:31:46.689153+00:00",
+          "decided_at": "2026-10-26T15:05:37.051096+00:00"
+        }
+      ],
+      "goal": "一个入口（页面 A + 同一套 HTTP 接口 + 命令行），用户只给指令 / 0–4 张图 / 蒙版，程序只看「图几张 × 有无蒙版」选工作流；不读指令内容、不用语言模型；指令原样交给底模。路由表只在业务层有一份，页面显示的路由来自 POST /api/plan。可选 seed（不填随机，回报实际值）、宽高（仅文生图，非 32 倍数就近取整并回报）。采样固定 25 步 euler simple CFG1；文生图默认 1024×1024；参考图与蒙版底图长边 >1920 先缩小。角色设定卡不进这个入口。",
+      "acceptance": [
+        "路由断言覆盖每一格：0 / 1 / 4 / 5 张、只有蒙版、图 + 蒙版、$prev + 4 张、空指令、全黑蒙版、蒙版与底图尺寸不一致、带图的步骤填宽高，结果与路由表一致",
+        "换一句指令（图和蒙版不变），走的路由不变",
+        "宽高 1000×700 实际出 992×704 并在响应里回报；seed 不填时响应回报实际 seed",
+        "页面 JS 里没有路由规则，路由与拒绝原因只来自 /api/plan"
+      ]
+    },
+    {
+      "seq": 2,
+      "type": "requirement",
+      "layer": "逻辑层",
+      "requirement": {
+        "text": "1. 文生图 2. 图生图支持1-4长参考图 3. 蒙版局部改写",
+        "source": "用户原话（上一会话）",
+        "at": "2026-10-26T10:28:31.827923+00:00"
+      },
+      "negotiations": [
+        {
+          "seq": 2,
+          "question": "现在下载蒙版权重吗（官方 INT8，3.78 GB）？",
+          "answer": "现在下。",
+          "decision": "已下载到 ComfyUI/models/model_patches/（3,779,298,944 B，ComfyUI 可见）",
+          "status": "decided",
+          "at": "2026-10-26T10:31:02.707344+00:00",
+          "answered_at": "2026-10-26T10:31:48.458525+00:00",
+          "decided_at": "2026-10-26T15:05:39.340068+00:00"
+        },
+        {
+          "seq": 3,
+          "question": "蒙版「其余保持」要到什么程度？是否需要把白区以外贴回原图？",
+          "answer": "已实测：ZImageFunControlnet(inpaint_image=底图) 白区外平均差 0.7/255，不需要贴回原图。用户同意方案（2026-10-26）。",
+          "decision": "用模型输出，不贴回原图；验收门槛白区外平均差 ≤ 3/255",
+          "status": "decided",
+          "at": "2026-10-26T10:31:06.044187+00:00",
+          "answered_at": "2026-10-26T10:31:51.613687+00:00",
+          "decided_at": "2026-10-26T15:05:41.964122+00:00"
+        }
+      ],
+      "goal": "三条工作流在本机 ComfyUI（Qwen-Image-2.1 无审 UC INT8）上真实可用：文生图（0 张图）· 参考图编辑（1–4 张，TextEncodeQwenImage21.images，画布跟第 1 张）· 蒙版改写（≥1 张 + 蒙版，第 1 张是底图，亮度 ≥0.5 的白区重画，其余保持；用 ZImageFunControlnet(inpaint_image=底图, mask) + qwen_image_2.1_fun_controlnet_union_int8_convrot）。",
+      "acceptance": [
+        "真 ComfyUI 零 mock：赤狐指令 → route=文生图 并取回一张图",
+        "1 张参考图 → route=参考图编辑，输出尺寸跟第 1 张（缩小/取整后）",
+        "图 + 白蒙版 → route=蒙版改写，白区外与底图平均绝对差 ≤ 3/255（基线实测 0.7）",
+        "不改 ComfyUI 代码"
+      ]
+    },
+    {
+      "seq": 3,
+      "type": "requirement",
+      "layer": "业务层",
+      "requirement": {
+        "text": "支持组合工作流 比如先处理A 用A结果处理B！",
+        "source": "用户原话（上一会话）",
+        "at": "2026-10-26T10:28:32.956394+00:00"
+      },
+      "negotiations": [
+        {
+          "seq": 4,
+          "question": "同一次请求里第 2 步用 $prev 又带蒙版时，第 1 步的图还不存在，页面上蒙版只能凭空涂；怎么处理？",
+          "answer": "用户选了模板 A（页面排多步）并同意方案：蒙版只能涂在已存在的图上，先出图再涂、接着跑。",
+          "decision": "蒙版只能涂在已存在的图上；$prev 且上一步未出图时蒙版入口禁用；生成从第一个未完成步骤开始，已完成步骤以图片 id 引用；接口仍支持 $prev + 蒙版（程序调用方自备蒙版）",
+          "status": "decided",
+          "at": "2026-10-26T10:31:10.046795+00:00",
+          "answered_at": "2026-10-26T10:31:54.806198+00:00",
+          "decided_at": "2026-10-26T15:05:46.483648+00:00"
+        }
+      ],
+      "goal": "一次请求可排多步，每步按自己的字段路由；只有写了 $prev 的步骤才接上一步的图（$prev 算 1 张），后一步不自动继承。步骤也可以用已有图片 id 代替 $prev。页面上蒙版只能涂在已存在的图上：用 $prev 且上一步还没出图时蒙版入口禁用；「生成」从第一个没完成的步骤开始跑，已完成步骤直接用已出的图。",
+      "acceptance": [
+        "一次请求两步（文生图 → $prev 参考图编辑）真跑通，第 2 步的第 1 张图是第 1 步产出",
+        "先出第 1 步图、在其上涂蒙版、接着只跑第 2 步（以图片 id 引用）真跑通",
+        "第 2 步没写 $prev 也没图 → 仍是一次新的文生图",
+        "$prev + 4 张 → 422"
+      ]
+    },
+    {
+      "seq": 4,
+      "type": "requirement",
+      "layer": "业务层",
+      "requirement": {
+        "text": "第 5 张直接拒绝，不悄悄丢掉；某一步失败就停下，响应里写第几步和 ComfyUI 的错误原文",
+        "source": "生图路由方案.html（已锁定规则，上一会话）",
+        "at": "2026-10-26T10:28:34.058694+00:00"
+      },
+      "negotiations": [
+        {
+          "seq": 5,
+          "question": "蒙版和底图尺寸不一致、带图的步骤又填了宽高，各怎么办？",
+          "answer": "同意建议：两者都拒绝（422，写明原因），不自动缩放、不悄悄忽略。（用户同意方案，2026-10-26）",
+          "decision": "两者都 422 拒绝并写明原因（尺寸不一致写出两个尺寸），不自动缩放、不忽略",
+          "status": "decided",
+          "at": "2026-10-26T10:31:13.202719+00:00",
+          "answered_at": "2026-10-26T10:31:58.261143+00:00",
+          "decided_at": "2026-10-26T15:05:49.838241+00:00"
+        }
+      ],
+      "goal": "失败说清楚，不悄悄丢、不悄悄猜：输入不合规 → 422 带每步原因（超 4 张、有蒙版没底图、全黑蒙版、空指令、蒙版与底图尺寸不一致、带图步骤填宽高）；不可用 → 503（ComfyUI 没开 / 权重或节点缺失写明缺什么 / 正在升级）；某步失败 → 停下，给步号 + ComfyUI 错误原文（不加解读），后续不跑，前面已出的图保留。",
+      "acceptance": [
+        "停掉 ComfyUI → /api/generate 返回 503",
+        "挤走蒙版权重 → 蒙版请求 503 并写明文件名，文生图与参考图编辑照常可用",
+        "升级进行中 → 503「ComfyUI 正在升级」",
+        "某步真失败 → 任务状态含步号与 ComfyUI 原文，后续步骤未提交，前面的图可取"
+      ]
+    },
+    {
+      "seq": 5,
+      "type": "requirement",
+      "layer": "用户层",
+      "requirement": {
+        "text": "先设计UI；（选模板时）A  蒙版支持画笔+反向画笔",
+        "source": "用户原话（上一会话 + 本会话 2026-10-26）",
+        "at": "2026-10-26T10:28:35.198537+00:00"
+      },
+      "negotiations": [
+        {
+          "seq": 6,
+          "question": "UI 用哪一套作为验收标准？（旧 A/B 被否后重做了 A 工作台 / B 画布接力 / C 极简一句话）",
+          "answer": "旧 A/B：「删掉是因为不满意，重做」「你直接重新设计模板让我选择」；重做后选「A」。",
+          "decision": "模板 A 工作台 design/ui-a-studio.html 为界面验收标准（含用户选定后的修改：失败只显示原文、顶栏只读版本、upgrading/wait-mask 状态、尺寸 1024²/1536×864/864×1536）",
+          "status": "decided",
+          "at": "2026-10-26T10:31:16.851973+00:00",
+          "answered_at": "2026-10-26T10:32:01.864479+00:00",
+          "decided_at": "2026-10-26T15:05:53.845885+00:00"
+        },
+        {
+          "seq": 7,
+          "question": "蒙版的「反向画笔」是「涂哪保哪、其余重画」还是橡皮？",
+          "answer": "就是橡皮。",
+          "decision": "反向画笔 = 橡皮；蒙版工具：画笔、橡皮、大小、清空",
+          "status": "decided",
+          "at": "2026-10-26T10:31:19.799010+00:00",
+          "answered_at": "2026-10-26T10:32:03.779944+00:00",
+          "decided_at": "2026-10-26T15:05:56.489699+00:00"
+        }
+      ],
+      "goal": "浏览器页面按模板 A 工作台（design/ui-a-studio.html，深色三栏：左步骤卡 / 中大画布 / 右历史）实现：填指令、放图、排多步、在大图上涂蒙版（画笔 + 橡皮；「反向画笔」=橡皮）、看进度与结果、下载、「接着改」；顶栏只读显示 ComfyUI 版本与检查结果。选定模板即界面验收标准。",
+      "acceptance": [
+        "页面与模板 A（design/ui-a-studio.html，三轮独立审查通过版）一致，覆盖 14 个状态：blank t2i ref mask wait-mask chain stale-mask reject running done down nofile upgrading fail",
+        "蒙版画板有画笔、橡皮、大小、清空；「涂好了」后上传完成前生成不可用",
+        "「先出第 n 步的图」只跑到第 n 步；旧图上的蒙版保留并标记；尺寸变了提示重新涂",
+        "页面对接真后端跑通三条路由与两步接力（真链路）",
+        "页面显示的路由、尺寸、拒绝只来自 /api/plan，限制与尺寸预设只来自 /api/status；JS 里没有路由规则",
+        "顶栏版本浮层只读，没有升级/回滚按钮",
+        "颜色字体间距来自主题变量；单文件 ≤ 400 行"
+      ]
+    },
+    {
+      "seq": 6,
+      "type": "requirement",
+      "layer": "业务层",
+      "requirement": {
+        "text": "项目支持ComfyUI版本管理",
+        "source": "用户原话（本会话 2026-10-26）",
+        "at": "2026-10-26T10:28:36.314567+00:00"
+      },
+      "negotiations": [
+        {
+          "seq": 8,
+          "question": "「ComfyUI 版本管理」指工作流跟版本走，还是管理 ComfyUI 本体安装（升级/回滚）？",
+          "answer": "管理 ComfyUI 本体的安装。",
+          "decision": "管理 ComfyUI 本体安装：升级 / 回滚，检查不过自动退回，不动 torch",
+          "status": "decided",
+          "at": "2026-10-26T10:31:22.795443+00:00",
+          "answered_at": "2026-10-26T10:32:05.706077+00:00",
+          "decided_at": "2026-10-26T15:05:58.982778+00:00"
+        },
+        {
+          "seq": 9,
+          "question": "升级和回滚在哪里操作：命令行（页面只显示）还是页面 + 命令行？",
+          "answer": "命令行操作，页面只显示。",
+          "decision": "命令行操作（image-api comfy versions / upgrade / rollback），页面顶栏只显示版本、检查结果、最近一次操作",
+          "status": "decided",
+          "at": "2026-10-26T10:31:25.741491+00:00",
+          "answered_at": "2026-10-26T10:32:07.733427+00:00",
+          "decided_at": "2026-10-26T15:06:01.937221+00:00"
+        },
+        {
+          "seq": 10,
+          "question": "原规则「不改 ComfyUI 本体」与版本管理冲突吗？怎么修订？",
+          "answer": "同意方案中的修订（2026-10-26 回复「同意」）。",
+          "decision": "修订为「不改 ComfyUI 代码；允许在官方版本之间升级、回滚」（decision id=1 保留修订历史）",
+          "status": "decided",
+          "at": "2026-10-26T10:31:28.899478+00:00",
+          "answered_at": "2026-10-26T10:32:10.014903+00:00",
+          "decided_at": "2026-10-26T15:06:05.338362+00:00"
+        }
+      ],
+      "goal": "管理 ComfyUI 本体安装（~/ComfyUI 官方 git 克隆 + uv .venv + systemd 用户服务 comfyui.service）：命令行列版本 / 升级 / 回滚；升级 = 记下当前版本与依赖清单 → 停服务 → 切到目标版本 → 同步依赖（不动 torch）→ 启动 → 检查（能启动 / 三条工作流要的节点与输入齐全 / 三条路各跑一张小图）→ 不过自动退回原版本与原依赖并报告哪项没过；回滚 = 退回上一个检查通过的版本。升级期间生图 503。页面只显示。不改 ComfyUI 代码。",
+      "acceptance": [
+        "真升级到 v0.42.5 → 检查通过，/api/status 与页面显示新版本",
+        "rollback → 回到 0b05cd8 且检查通过",
+        "注入一项检查失败 → 自动退回原版本，ComfyUI 可用，报告写明哪项没过",
+        "全程 torch 版本不变；验收结束 ComfyUI 停在 0b05cd8",
+        "升级期间 /api/generate 返回 503「正在升级」"
+      ]
+    },
+    {
+      "seq": 7,
+      "type": "requirement",
+      "layer": "逻辑层",
+      "requirement": {
+        "text": "后续也可以支持其他自定义API生图",
+        "source": "用户原话（本会话 2026-10-26）",
+        "at": "2026-10-26T10:28:37.093209+00:00"
+      },
+      "negotiations": [
+        {
+          "seq": 11,
+          "question": "「后续支持其他自定义 API 生图」本期做到什么程度？",
+          "answer": "同意方案：定义生图后端接口，本期只实现 ComfyUI。",
+          "decision": "定义生图后端接口（能力声明 / 状态 / 跑一步 / 进度 / 错误），路由按后端能力走；本期只实现 ComfyUI，不实现第二个",
+          "status": "decided",
+          "at": "2026-10-26T10:31:31.552124+00:00",
+          "answered_at": "2026-10-26T10:32:12.517932+00:00",
+          "decided_at": "2026-10-26T15:06:08.780925+00:00"
+        }
+      ],
+      "goal": "生图后端可插拔：定义一个生图后端接口（能力声明：支持哪几条路由与限制 / 状态 / 跑一步 / 进度 / 错误），路由与多步编排只依赖这个接口；本期只实现 ComfyUI 后端，不实现第二个。",
+      "acceptance": [
+        "业务层不 import ComfyUI 具体实现（分层检查断言）",
+        "用一个测试用假后端（只声明支持文生图）跑规划：带蒙版的步骤被拒并写明后端不支持，证明路由按后端能力走"
+      ]
+    },
+    {
+      "seq": 8,
+      "type": "requirement",
+      "layer": "逻辑层",
+      "requirement": {
+        "text": "模块化实现! 也就是说核心模块后续其他项目可以复用；先设计UI 然后设计底层逻辑封装 业务组装 模块化分层架构",
+        "source": "用户原话（本会话 2026-10-26 + 上一会话）",
+        "at": "2026-10-26T10:28:38.219842+00:00"
+      },
+      "negotiations": [
+        {
+          "seq": 12,
+          "question": "「核心模块其他项目可复用」以什么形式？哪些算核心？",
+          "answer": "同意方案：核心独立成 Python 包，不依赖网页。",
+          "decision": "核心包 imagegen（logic + biz）独立、不依赖 FastAPI/页面，其他项目可安装 import；应用 image-api 只是使用方；登记 reusable_code",
+          "status": "decided",
+          "at": "2026-10-26T10:31:34.285248+00:00",
+          "answered_at": "2026-10-26T10:32:14.774813+00:00",
+          "decided_at": "2026-10-26T15:06:11.887454+00:00"
+        }
+      ],
+      "goal": "模块化分层与可复用：核心包 imagegen（logic：生图后端接口、ComfyUI 后端与安装操作、图片处理、存储；biz：路由表、规划校验、逐步执行、可用性、版本管理流程）不依赖网页，其他项目可直接 import；应用 image-api（HTTP 接口 + 页面 + 命令行）只是使用方。依赖只向下，一个事实一个来源，一个项目只有一个验收入口 scripts/gate.py。",
+      "acceptance": [
+        "分层自动检查通过：ui→biz→logic 只向下，核心包不 import FastAPI / 应用",
+        "在一个空项目里安装并 import 核心包，能真出一张图",
+        "没有超大文件，每个文件一个职责",
+        "scripts/gate.py 一条命令出报告（.pp/gate/），全量绿",
+        "核心包登记到 ppwiki reusable_code"
+      ]
+    }
+  ],
+  "notes": "# 生图入口 image-api · 完整方案（用户 2026-10-26 回复「同意」）\n\n## 1 最终目的\n在本机做一个 image-api：页面（模板 A）+ 接口 + 命令行。用户只给指令 / 0–4 张图 / 蒙版，程序只按「图几张 × 有无蒙版」选文生图、参考图编辑、蒙版改写；多步时写了 $prev 的步骤接上一步的图。生图后端可插拔（本期只实现 ComfyUI）；ComfyUI 本体版本可用命令行安全升级、回滚，检查不过自动退回；核心模块是独立的包，其他项目可直接复用。\n\n## 2 已实测的事实（2026-10-26）\n- ComfyUI：~/ComfyUI 官方 git 克隆，master 0b05cd8，无本地改动；uv 管理的 .venv（Python 3.14.4，torch 2.14.1+cu130，requirements.txt 不锁 torch；全局 uv 源是阿里云镜像，没有 cu130 的 torch，重装 torch 会坏）；systemd 用户服务 comfyui.service；无第三方节点；最新正式版 v0.42.5（483dae4）也含 Qwen 2.1 节点；本地没有 tag，需 git fetch --tags。\n- 底模：无审 UC INT8（qwen_image_2.1_int8_convrot 是指向它的软链接）；文生图 18.9 / 19.3 / 28.6 s（1024² / 1536×864 / 1920×1088）。\n- 蒙版权重 qwen_image_2.1_fun_controlnet_union_int8_convrot.safetensors 已下载（3,779,298,944 B，ComfyUI 可见）。\n- 蒙版接法实测：ZImageFunControlnet(inpaint_image=底图, mask) 白区外平均差 0.7/255；QwenImageDiffsynthControlnet(image=底图) 17.4/255 整图偏色，不用。源码依据 comfy_extras/nodes_model_patch.py:660-665。\n- 参考图编辑：TextEncodeQwenImage21.images（输入名 images.image_1…image_16，产品限 4），resolution 默认 1024；官方模板画布宽高取自第 1 张图。\n\n## 3 改前 → 改后\n| | 现在 | 改后 |\n|---|---|---|\n| 入口 | ComfyUI 网页里自己挑模板 | 页面 A + 同一套接口 + 命令行 |\n| 选工作流 | 人看材料再选 | 程序只看「图几张 × 有无蒙版」 |\n| 组合 | 手动把上一张图拖进下一个工作流 | 步骤里写 $prev；要涂蒙版的先出图再涂、接着跑 |\n| 出错 | ComfyUI 界面红框 | 422（每步原因）/ 503（没开、缺文件、正在升级）/ 步骤失败（步号 + ComfyUI 原文） |\n| 升级 ComfyUI | 手动 git pull，坏了自己查 | 命令行升级：自动检查，不过自动退回；一条命令回滚 |\n| 换生图服务 | 只能用 ComfyUI | 后端接口可插拔 |\n| 复用 | 无 | 核心包，其他项目 import 即用 |\n\n## 4 收益与代价\n- 收益：不懂工作流也能出图；接力不用手动倒图；出错有明确原因；ComfyUI 升级坏了能自动退回；核心模块可复用。\n- 开发量（预计，按模块数与模板 A 估）：核心包 1500–2200 行，接口与命令行约 400 行，页面约 1400 行（拆成多个文件），测试约 1000 行。\n- 验收占用：真跑 10–15 张图（每张实测 19–29 s）；真升级 / 回滚时 ComfyUI 停几分钟；验收完 ComfyUI 回到 0b05cd8。\n- 磁盘：出图存 data/，本期不做清理。\n\n## 5 流程\n现在：\n```mermaid\nflowchart LR\n  U[用户] --> CW[ComfyUI 网页]\n  CW -->|自己挑模板| WF[工作流]\n  WF --> CU[(ComfyUI)]\n  CU -->|手动倒图| CW\n  ADM[管理员] -->|手动 git pull| CU\n```\n目标（新增部分为生图后端接口、版本管理）：\n```mermaid\nflowchart TD\n  U[页面 A / 程序 / 其他项目] --> W[接口层: HTTP 接口 + 命令行]\n  W --> P[业务: 规划 = 路由表 + 校验]\n  P -->|拒绝| R422[422 每步原因]\n  P --> X[业务: 逐步执行 · $prev · 失败即停]\n  X --> B{{生图后端接口}}\n  B --> C[ComfyUI 后端: 客户端 · 三张工作流]\n  C --> CU[(ComfyUI 127.0.0.1:8188)]\n  W --> V[业务: 版本管理 升级/回滚]\n  V --> I[ComfyUI 安装操作: git · uv · systemd]\n  V -->|检查| B\n  I --> CU\n```\n升级：\n```mermaid\nflowchart LR\n  S[记下当前版本与依赖清单] --> ST[停服务] --> CO[切到目标版本] --> DEP[同步依赖 不动 torch] --> RUN[启动] --> CK{检查: 能启动 / 节点与输入齐全 / 三条路各跑一张小图}\n  CK -->|通过| OK[记录为已检查版本]\n  CK -->|不过| RB[自动退回原版本与原依赖 · 报告哪项没过]\n```\n升级期间生图返回 503「ComfyUI 正在升级」。蒙版与上一步：蒙版只能涂在已存在的图上；「生成」从第一个没完成的步骤开始跑，已完成的步骤直接用已出的图。\n\n## 6 结构（依赖只向下；核心包不依赖网页）\n- 核心包 imagegen（packages/imagegen）\n  - logic：生图后端接口 · ComfyUI 后端（配置、客户端、三张工作流、安装操作 git/uv/systemd）· 图片处理（缩小、取整 32、蒙版检查）· 存储\n  - biz：路由表（唯一一份）· 规划校验 · 逐步执行与任务队列 · 可用性 · 版本管理流程 · 契约模型\n  - factory：唯一的组装点（把 ComfyUI 后端接进业务层）\n- 应用 image-api（app）：HTTP 接口 + 页面（模板 A）+ 命令行 image-api serve / comfy versions|upgrade|rollback\n- 技术：Python 3.14 + uv workspace；FastAPI + uvicorn；Pillow；httpx + websockets；只监听 127.0.0.1:8190；出图存 data/（git 忽略）\n- 守卫：tests/test_layering.py（依赖方向、核心包不依赖网页、只有组装点能引用具体后端、无循环导入、单文件 ≤ 400 行）\n\n## 7 接口契约 v1（模板 A 三轮审查后定稿；编码时落成核心包里的 pydantic 模型，以代码为唯一来源）\n所有图片先上传、后用 id 引用；/api/plan 和 /api/generate 收同一个请求体。错误体统一 {\"code\": \"...\", \"message\": \"...\", ...}。\n\n### 图片\nPOST /api/images            multipart: file=<png|jpg|webp>\n  201 → {\"id\": \"img_…\", \"url\": \"/api/images/img_…\", \"width\": 960, \"height\": 960}\n  422 → {\"code\": \"bad_image\", \"message\": \"…\"}\nGET  /api/images/{id}       → 图片字节（Content-Disposition 带下载文件名）\n蒙版也是普通图片：亮度 ≥ 0.5 的像素 = 重画。页面把画板导出成黑白 PNG 上传。\n\n### 请求体（plan / generate 共用）\n{\n  \"first_step\": 1,                     // 这批步骤在页面上的起始步号；错误、进度里的步号都按它算\n  \"steps\": [\n    { \"instruction\": \"画一只…\",\n      \"images\": [\"img_…\", \"$prev\"],    // 0–4 个；\"$prev\" = 这批里上一步的产出，算 1 张\n      \"mask\": \"img_…\" | null,\n      \"seed\": 123 | null,              // null = 随机，结果里回报实际值\n      \"width\": 1000 | null, \"height\": 700 | null }   // 只给文生图\n  ]\n}\n页面只发「还没完成的步骤」：已完成步骤的图用它的图片 id 引用，不再发那一步；所以这批的第 1 步不能写 \"$prev\"。\n\n### POST /api/plan → 200（只规划，不运行；页面实时调用）\n{\n  \"ok\": true | false,                  // 所有步骤都没有 reject 且都 available 时为 true\n  \"steps\": [\n    { \"step\": 2,\n      \"route\": \"t2i\" | \"ref\" | \"mask\" | null,      // 有 reject 时为 null\n      \"output\": {\"width\": 960, \"height\": 544} | null,  // 预计出图尺寸（已缩小/取整）；$prev 步按上一步预计尺寸推算\n      \"requested\": {\"width\": 1000, \"height\": 700} | null,  // 只在用户填的尺寸被取整时给\n      \"reject\": {\"code\": \"...\", \"message\": \"一句话原因和怎么改\"} | null,\n      \"unavailable\": {\"code\": \"comfy_down\" | \"missing_file\" | \"missing_node\" | \"upgrading\", \"message\": \"…\"} | null }\n  ]\n}\nreject.code 固定集合：\n  empty_instruction · too_many_images · mask_without_image · mask_empty · mask_size_mismatch · size_with_images ·\n  prev_on_first_step · unknown_image · route_unsupported（后端不支持这条路由）\n页面按 code 决定修复按钮（如 mask_without_image → 去掉蒙版；size_with_images → 清掉宽高；mask_size_mismatch → 重新涂；too_many_images → 无按钮）；\nempty_instruction 页面显示为灰色提示而不是红色错误。页面不自己判断任何路由或拒绝。\n\n### POST /api/generate\n202 → {\"job_id\": \"job_…\"}\n422 → {\"code\": \"rejected\", \"message\": \"…\", \"plan\": <同 /api/plan 响应>}\n503 → {\"code\": \"comfy_down\" | \"missing_file\" | \"missing_node\" | \"upgrading\", \"message\": \"…\", \"raw\": \"原文或缺失的文件路径\"}\n\n### GET /api/jobs/{id}\n{\n  \"id\": \"job_…\",\n  \"state\": \"queued\" | \"running\" | \"done\" | \"failed\",\n  \"first_step\": 1,\n  \"steps\": [\n    { \"step\": 1, \"route\": \"t2i\",\n      \"state\": \"queued\" | \"running\" | \"done\" | \"failed\" | \"skipped\",   // 失败之后的步骤为 skipped\n      \"progress\": 0.42 | null,                                         // 只有 running 的步骤有，0–1\n      \"image\": {\"id\": \"img_…\", \"url\": \"…\", \"width\": 960, \"height\": 960, \"route\": \"t2i\", \"seed\": 428193} | null,\n      \"error\": {\"raw\": \"ComfyUI 原文\"} | null }\n  ]\n}\n已完成步骤的 image 在任务还在跑时就给出（页面可以先显示第 1 步的图）。\n\n### GET /api/history?limit=50&before=<image_id>\n{\"items\": [ {\"id\", \"url\", \"width\", \"height\", \"route\", \"seed\", \"instruction\", \"created_at\": \"ISO8601\", \"job_id\", \"step\"} ]}   // 新的在前\n\n### GET /api/status\n{\n  \"backend\": \"comfyui\",\n  \"host\": \"127.0.0.1:8188\",\n  \"online\": true,\n  \"upgrading\": {\"target\": \"v0.42.5\", \"since\": \"ISO8601\"} | null,\n  \"version\": {\"tag\": \"v0.42.5\" | null, \"commit\": \"483dae4\"},\n  \"last_check\": {\"at\": \"ISO8601\", \"version\": {...},\n                 \"items\": [ {\"name\": \"starts\",  \"label\": \"能启动\",     \"ok\": true, \"note\": null},\n                            {\"name\": \"nodes\",   \"label\": \"节点齐全\",   \"ok\": true, \"note\": null},\n                            {\"name\": \"routes\",  \"label\": \"三条路试跑\", \"ok\": true, \"note\": null} ]} | null,\n  \"last_operation\": {\"at\": \"ISO8601\", \"kind\": \"upgrade\" | \"rollback\", \"from\": {...version}, \"to\": {...version},\n                     \"result\": \"passed\" | \"reverted\", \"note\": \"没过的那一项\" | null} | null,\n  \"routes\": { \"t2i\":  {\"available\": true,  \"reason\": null},\n              \"ref\":  {\"available\": true,  \"reason\": null},\n              \"mask\": {\"available\": false, \"reason\": \"缺少蒙版权重 models/model_patches/qwen_image_2.1_fun_controlnet_union_int8_convrot.safetensors\"} },\n  \"limits\": {\"max_images\": 4, \"max_edge\": 1920, \"size_multiple\": 32, \"default_size\": {\"width\": 1024, \"height\": 1024}},\n  \"size_presets\": [ {\"label\": \"1:1\", \"width\": 1024, \"height\": 1024}, {\"label\": \"16:9\", \"width\": 1536, \"height\": 864}, {\"label\": \"9:16\", \"width\": 864, \"height\": 1536} ]\n}\nlast_check 只在升级 / 回滚时运行（三条路各跑一张小图）；routes 的可用性是每次 /api/status 实时查的（文件、节点是否存在），不跑图。\n\n### 出图尺寸规则（后端唯一实现，页面只显示 output）\n文生图：width/height 缺省 1024×1024，就近取整到 32 的倍数。\n参考图编辑 / 蒙版改写：第 1 张图长边 > 1920 先等比缩小，再就近取整到 32 的倍数（960×540 → 960×544）。\n\n### 时间\n所有时间字段是 ISO 8601，必须带时区（Z 或偏移量）；页面按本地时间显示。\n\n### 页面行为（给页面线的约束）\n- 「涂好了」后先上传蒙版；上传完成前「生成」不可用（请求里必须是新蒙版的 id）。\n- 蒙版只能涂在已存在的图上；「先出第 n 步的图」只跑到第 n 步；旧图上的蒙版保留并标记，生成只跑到它前一步；plan 已返回 mask_size_mismatch 时提示「新图尺寸变了，蒙版要重新涂」，修复按钮「重新涂」。\n\n## 8 范围\n本期做：上面全部。\n本期不做：角色设定卡；语言模型 / 拆句；改 ComfyUI 代码；第二个生图后端的实现；页面上的升级按钮；第三方节点的版本管理；Turbo / LoRA / 一次多张；登录、取消、图片清理、打包；MCP 封装。\n\n## 9 执行安排\n团队未运行（ListAgents 只有本会话子 Agent，ppwiki 任务队列为空）→ 主管调度子 Agent，每条线一个执行、另一个审查。\n```mermaid\nflowchart LR\n  S0[0 骨架 主管] --> L1[1 页面线 web/static]\n  S0 --> L2[2 核心逻辑线 imagegen/logic]\n  L1 --> L3[3 业务组装线 imagegen/biz + app 接口]\n  L2 --> L3\n  L3 --> L4[4 版本管理线]\n  L4 --> L5[5 全量验收 主管]\n```\n共享文件（pyproject.toml、uv.lock、.gitignore、scripts/gate*）归主管。\n",
+  "confirm": {
+    "confirmed_at": "2026-10-26T16:32:35.866777+00:00",
+    "confirmed_by": "用户（2026-10-26 选「锁定，开工」）"
+  },
+  "derived_task_id": null,
+  "schema_version": 5,
+  "created": "2026-10-26T10:28:28.556738+00:00",
+  "updated": "2026-10-26T16:32:35.866952+00:00"
+}

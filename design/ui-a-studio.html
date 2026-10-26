@@ -1,0 +1,1456 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>生图入口 · 工作台（方向 A）</title>
+<style>
+:root{
+  /* ---------- 颜色 ---------- */
+  --bg:#0a0a0c;
+  --bg-2:#0f0f12;
+  --panel:#121216;
+  --card:#17171c;
+  --card-2:#1f1f26;
+  --card-3:#282830;
+  --well:#0c0c0f;
+  --line:#24242b;
+  --line-2:#363640;
+  --text:#ececf1;
+  --text-2:#a5a5b2;
+  --text-3:#6e6e7b;
+  --accent:#b39bff;
+  --accent-2:#7b8cff;
+  --accent-ink:#0d0b18;
+  --ok:#43d18d;
+  --warn:#f2b43f;
+  --danger:#ff6464;
+  --r-t2i:#64b2ff;
+  --r-ref:#45d2b4;
+  --r-mask:#ff7fcd;
+  --mask:#ff3fa4;
+  --scrim:rgba(8,8,11,.74);
+  --scrim-2:rgba(8,8,11,.5);
+  --glow:rgba(255,255,255,.07);
+  --shadow:0 18px 50px rgba(0,0,0,.6);
+  --shadow-s:0 6px 18px rgba(0,0,0,.45);
+  --demo-bg:#1b1606;
+  --demo-bg-2:#221c08;
+  --demo-line:#5c4b12;
+  --demo-fg:#f2d374;
+  --demo-fg-2:#b89e52;
+  /* ---------- 字体 ---------- */
+  --font:"Inter","PingFang SC","Hiragino Sans GB","Noto Sans CJK SC","Source Han Sans SC","Microsoft YaHei",system-ui,sans-serif;
+  --mono:"JetBrains Mono","SFMono-Regular","Cascadia Mono","Noto Sans Mono CJK SC",Menlo,Consolas,monospace;
+  --fs-2xs:10px; --fs-xs:11px; --fs-s:12px; --fs-m:13px; --fs-l:15px; --fs-xl:18px; --fs-hero:44px;
+  /* ---------- 间距 ---------- */
+  --sp-0:2px; --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:20px; --sp-6:24px; --sp-7:32px;
+  /* ---------- 圆角 ---------- */
+  --r-xs:4px; --r-s:6px; --r-m:10px; --r-l:14px; --r-pill:999px;
+  /* ---------- 尺寸 ---------- */
+  --top-h:48px; --demo-h:36px; --col-left:388px; --col-film:118px;
+  --head-h:44px; --foot-h:56px; --tile-h:72px; --tile-h-empty:46px; --btn-h:30px; --gen-h:52px; --stage-pad:28px;
+  --mask-alpha:.55;
+  /* ---------- 导出的蒙版 PNG：白 = 重画，黑 = 不动（数据值，不是界面色） ---------- */
+  --mask-on:#fff; --mask-off:#000;
+}
+@media (max-width:1200px){
+  :root{ --col-left:340px; --col-film:96px; --tile-h:62px; --stage-pad:20px; }
+}
+
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:var(--font);font-size:var(--fs-m);-webkit-font-smoothing:antialiased}
+button,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+.ic{flex:none;display:block}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+/* ---------- 外框 ---------- */
+.app{position:fixed;inset:0 0 var(--demo-h) 0;display:grid;grid-template-rows:var(--top-h) minmax(0,1fr)}
+.top{display:flex;align-items:center;gap:var(--sp-3);padding:0 var(--sp-4);border-bottom:1px solid var(--line);background:var(--bg-2)}
+.brand{display:flex;align-items:center;gap:var(--sp-2);font-weight:650;font-size:var(--fs-l);letter-spacing:.04em}
+.logo{width:26px;height:26px;border-radius:var(--r-s);background:linear-gradient(135deg,var(--accent),var(--accent-2));display:grid;place-items:center;color:var(--accent-ink)}
+.brand small{font-weight:400;color:var(--text-3);font-size:var(--fs-s);letter-spacing:0;margin-left:var(--sp-1)}
+.status{margin-left:auto;display:flex;align-items:center;gap:var(--sp-2);height:var(--btn-h);padding:0 var(--sp-3);border:1px solid var(--line);border-radius:var(--r-pill);font-size:var(--fs-s);color:var(--text-2);background:var(--panel)}
+.status .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px color-mix(in srgb,var(--ok) 22%,transparent)}
+.status.down{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 40%,var(--line))}
+.status.down .dot{background:var(--danger);box-shadow:0 0 0 3px color-mix(in srgb,var(--danger) 22%,transparent)}
+.status.warn{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 40%,var(--line))}
+.status.warn .dot{background:var(--warn);box-shadow:0 0 0 3px color-mix(in srgb,var(--warn) 22%,transparent)}
+.status .sub{color:var(--text-3)}
+.top{position:relative}
+button.status{cursor:pointer}
+button.status:hover,button.status.open{border-color:var(--line-2);background:var(--card)}
+.status .ver{font-family:var(--mono);font-size:var(--fs-xs);color:var(--text)}
+.status.down .ver,.status.warn .ver{color:inherit}
+.status.busy .dot{animation:pulse 1.2s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.3}}
+.pop{position:absolute;top:calc(var(--top-h) - var(--sp-1));right:var(--sp-4);width:340px;z-index:40;background:var(--card);border:1px solid var(--line-2);border-radius:var(--r-l);box-shadow:var(--shadow);padding:var(--sp-4);display:flex;flex-direction:column;gap:var(--sp-3);font-size:var(--fs-s);color:var(--text-2)}
+.pop[hidden]{display:none}
+.pop-h{display:flex;align-items:center;gap:var(--sp-2);color:var(--text);font-weight:600;font-size:var(--fs-m)}
+.pop-h .tag{margin-left:auto}
+.pop-row{display:flex;flex-direction:column;gap:var(--sp-1)}
+.pop-k{display:flex;justify-content:space-between;font-size:var(--fs-2xs);color:var(--text-3);letter-spacing:.06em}
+.pop-v{color:var(--text);font-family:var(--mono);font-size:var(--fs-m)}
+.pop-checks{display:flex;flex-direction:column;gap:var(--sp-1)}
+.pop-checks span{display:flex;align-items:center;gap:var(--sp-2);color:var(--text)}
+.pop-checks .ok .ic{color:var(--ok)}
+.pop-checks .no .ic{color:var(--danger)}
+.pop-checks .wait{color:var(--text-3)}
+.pop-checks em{font-style:normal;color:var(--text-3);font-size:var(--fs-xs)}
+.pop-routes{flex-direction:row;flex-wrap:wrap;column-gap:var(--sp-3)}
+.pop-why{flex-basis:100%;padding-left:22px;font-family:var(--mono);font-size:var(--fs-2xs);line-height:1.5;color:var(--text-3);word-break:break-all}
+.pop-op{color:var(--text);line-height:1.5}
+.pop-cli{border-top:1px solid var(--line);padding-top:var(--sp-3);font-size:var(--fs-xs);color:var(--text-3);line-height:1.8}
+.pop-cli code{font-family:var(--mono);color:var(--text-2);white-space:nowrap}
+
+.work{display:grid;grid-template-columns:var(--col-left) minmax(0,1fr) var(--col-film);min-height:0}
+
+/* ---------- 左栏：步骤 ---------- */
+.left{display:flex;flex-direction:column;min-height:0;border-right:1px solid var(--line);background:var(--panel)}
+.left-head{display:flex;align-items:center;gap:var(--sp-2);padding:var(--sp-3) var(--sp-4) var(--sp-2);font-size:var(--fs-s);color:var(--text-2)}
+.left-head b{color:var(--text);font-weight:600;font-size:var(--fs-m)}
+.left-head .n{color:var(--text-3)}
+.steps{flex:1;min-height:0;overflow-y:auto;padding:0 var(--sp-3) var(--sp-4);scrollbar-width:thin;scrollbar-color:var(--line-2) transparent}
+
+.card{position:relative;background:var(--card);border:1px solid var(--line);border-radius:var(--r-l);padding:var(--sp-3);display:flex;flex-direction:column;gap:var(--sp-2);transition:border-color .15s}
+.card:hover{border-color:var(--line-2)}
+.card.sel{border-color:color-mix(in srgb,var(--accent) 55%,var(--line));box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 25%,transparent)}
+.card.bad{border-color:var(--danger);background:color-mix(in srgb,var(--danger) 6%,var(--card));box-shadow:0 0 0 1px color-mix(in srgb,var(--danger) 30%,transparent)}
+.card.running{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 0 24px color-mix(in srgb,var(--accent) 22%,transparent)}
+.card.locked textarea,.card.locked input,.card.locked .tray,.card.locked .c-tools,.card.locked .more{pointer-events:none}
+.card.locked .c-body{opacity:.72}
+.c-head{display:flex;align-items:center;gap:var(--sp-2);min-height:24px}
+.c-no{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:var(--fs-xs);font-weight:700;background:var(--card-3);color:var(--text)}
+.card.sel .c-no{background:var(--accent);color:var(--accent-ink)}
+.card.bad .c-no{background:var(--danger);color:var(--accent-ink)}
+.c-size{font-size:var(--fs-xs);color:var(--text-3);font-variant-numeric:tabular-nums}
+.c-sp{flex:1}
+.c-body{display:flex;flex-direction:column;gap:var(--sp-2)}
+.ib{width:24px;height:24px;display:grid;place-items:center;border:0;border-radius:var(--r-s);background:transparent;color:var(--text-3);padding:0}
+.ib:hover{background:var(--card-3);color:var(--text)}
+
+.tag{display:inline-flex;align-items:center;gap:var(--sp-1);height:20px;padding:0 var(--sp-2);border-radius:var(--r-pill);font-size:var(--fs-xs);font-weight:600;white-space:nowrap;color:var(--rc,var(--text-2));background:color-mix(in srgb,var(--rc,var(--text-2)) 14%,transparent);border:1px solid color-mix(in srgb,var(--rc,var(--text-2)) 32%,transparent)}
+.tag.t2i{--rc:var(--r-t2i)} .tag.ref{--rc:var(--r-ref)} .tag.mask{--rc:var(--r-mask)} .tag.bad{--rc:var(--danger)}
+.tag.ok{--rc:var(--ok)} .tag.warn{--rc:var(--warn)}
+.tag.dim{opacity:.55}
+.tag.mute{--rc:var(--text-3)}
+.rdot{width:7px;height:7px;border-radius:50%;background:var(--rc);flex:none}
+.rdot.t2i{--rc:var(--r-t2i)} .rdot.ref{--rc:var(--r-ref)} .rdot.mask{--rc:var(--r-mask)}
+
+.st{display:inline-flex;align-items:center;gap:var(--sp-1);font-size:var(--fs-xs);color:var(--text-3);font-variant-numeric:tabular-nums}
+.st.run{color:var(--accent);font-weight:600}
+.st.ok{color:var(--ok)}
+.st.fail{color:var(--danger);font-weight:600}
+.st-thumb{width:26px;height:26px;border-radius:var(--r-xs);object-fit:cover;border:1px solid var(--line-2);cursor:pointer;display:block}
+.st-thumb:hover{border-color:var(--accent)}
+.spin{width:12px;height:12px;border-radius:50%;border:2px solid color-mix(in srgb,var(--accent) 25%,transparent);border-top-color:var(--accent);animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.c-prompt{width:100%;resize:none;min-height:56px;max-height:150px;border:1px solid var(--line);background:var(--well);border-radius:var(--r-m);padding:var(--sp-2) var(--sp-3);font-size:var(--fs-m);line-height:1.55;color:var(--text);outline:none}
+.c-prompt::placeholder{color:var(--text-3)}
+.c-prompt:focus{border-color:color-mix(in srgb,var(--accent) 60%,var(--line))}
+
+.tray-lab{display:flex;justify-content:space-between;font-size:var(--fs-2xs);color:var(--text-3);letter-spacing:.04em}
+.tray-lab .over{color:var(--danger);font-weight:700}
+.tray{display:grid;grid-template-columns:repeat(var(--cols),minmax(0,1fr));gap:var(--sp-1)}
+.tile{position:relative;height:var(--tile-h);border-radius:var(--r-s);border:1px solid var(--line);background:var(--well) center/cover no-repeat;overflow:hidden;cursor:grab;padding:0}
+.tile:hover{border-color:var(--line-2)}
+.tray.is-empty .tile{height:var(--tile-h-empty);flex-direction:row;gap:var(--sp-1)}
+.tile.empty{border-style:dashed;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--sp-0);color:var(--text-3);background:transparent;font-size:var(--fs-2xs)}
+.tile.empty.ghost{opacity:.5}
+.tile.empty.first{color:var(--text-2);border-color:var(--line-2)}
+.tile.empty:hover{border-color:var(--accent);color:var(--accent);opacity:1}
+.tile.drag-over{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 40%,transparent)}
+.tile.dragging{opacity:.35}
+.t-badge{position:absolute;left:var(--sp-1);top:var(--sp-1);font-size:var(--fs-2xs);line-height:1;padding:var(--sp-0) var(--sp-1);border-radius:var(--r-xs);background:var(--scrim);color:var(--text);font-weight:600}
+.tile.lead .t-badge{background:var(--accent);color:var(--accent-ink)}
+.t-x{position:absolute;right:var(--sp-1);top:var(--sp-1);width:18px;height:18px;border-radius:50%;border:0;background:var(--scrim);color:var(--text);display:none;place-items:center;padding:0}
+.tile:hover .t-x{display:grid}
+.t-x:hover{background:var(--danger);color:var(--accent-ink)}
+.tile.prev{border:1px dashed color-mix(in srgb,var(--accent) 65%,transparent);background-color:color-mix(in srgb,var(--accent) 9%,var(--well))}
+.t-prev{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--sp-1);font-size:var(--fs-2xs);color:var(--accent);font-weight:600}
+.tile.prev.has .t-prev{inset:auto 0 0 0;flex-direction:row;padding:var(--sp-0) 0;background:var(--scrim)}
+.tile.over{border:1px solid var(--danger);box-shadow:inset 0 0 0 1px var(--danger)}
+.tile.over::after{content:"";position:absolute;inset:0;background:color-mix(in srgb,var(--danger) 28%,transparent);pointer-events:none;z-index:1}
+.tile .t-badge,.tile .t-x{z-index:2}
+.tile.viewing{outline:2px solid var(--accent);outline-offset:1px}
+
+.c-tools{display:flex;align-items:center;gap:var(--sp-2);flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:var(--sp-1);height:var(--btn-h);padding:0 var(--sp-3);border-radius:var(--r-pill);border:1px solid var(--line-2);background:var(--card-2);color:var(--text-2);font-size:var(--fs-s);white-space:nowrap}
+.chip:hover{color:var(--text);border-color:var(--text-3)}
+.chip.on{background:color-mix(in srgb,var(--accent) 16%,transparent);border-color:color-mix(in srgb,var(--accent) 55%,transparent);color:var(--accent)}
+.chip:disabled{opacity:.45;cursor:not-allowed}
+.chip.sm{height:24px;padding:0 var(--sp-2);font-size:var(--fs-xs)}
+.mask-ctl{display:flex;align-items:center;gap:var(--sp-1);margin-left:auto}
+.mask-ctl .m-thumb{width:30px;height:30px;border-radius:var(--r-xs);border:1px solid color-mix(in srgb,var(--mask) 50%,var(--line));display:block;cursor:pointer}
+.mask-ctl .lab{font-size:var(--fs-xs);color:var(--r-mask);margin:0 var(--sp-1)}
+.mask-ctl .chip{height:24px;padding:0 var(--sp-2);font-size:var(--fs-xs)}
+.mask-ctl .lab.run{color:var(--accent)} .mask-ctl .lab.warn{color:var(--warn)} .mask-ctl .lab.bad{color:var(--danger)} .mask-ctl .lab.mute{color:var(--text-3)}
+.c-tools:empty{display:none}
+.m-wait{font-size:var(--fs-xs);color:var(--text-3);margin-right:var(--sp-1)}
+.f .chip.sm{height:24px}
+.f[hidden]{display:none}
+
+.c-msg:empty{display:none}
+.msg{display:flex;gap:var(--sp-2);align-items:flex-start;font-size:var(--fs-s);line-height:1.55;color:var(--text)}
+.msg .ic{color:var(--danger);margin-top:var(--sp-0)}
+.msg .txt{flex:1;min-width:0}
+.linkbtn{color:var(--accent);background:none;border:0;padding:0;text-decoration:underline;text-underline-offset:3px;font-size:var(--fs-s)}
+.raw-wrap{margin-top:var(--sp-2)}
+.raw{font-family:var(--mono);font-size:var(--fs-xs);line-height:1.6;color:var(--text-2);background:var(--well);border:1px solid color-mix(in srgb,var(--danger) 35%,var(--line));border-radius:var(--r-s);padding:var(--sp-2) var(--sp-3);white-space:pre-wrap;word-break:break-all;margin:0}
+.raw .rt{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.raw.open .rt{display:block}
+.raw-bar{display:flex;gap:var(--sp-3);margin-top:var(--sp-1);font-size:var(--fs-xs);color:var(--text-3)}
+.raw-bar button{background:none;border:0;padding:0;color:var(--text-2);font-size:var(--fs-xs);display:inline-flex;align-items:center;gap:var(--sp-1)}
+.raw-bar button:hover{color:var(--text)}
+.raw-bar .src{margin-left:auto;font-family:var(--mono)}
+
+.more{border-top:1px solid var(--line);margin:0 calc(var(--sp-3) * -1) calc(var(--sp-3) * -1);padding:0 var(--sp-3)}
+.more summary{list-style:none;display:flex;align-items:center;gap:var(--sp-2);height:32px;font-size:var(--fs-xs);color:var(--text-3);cursor:pointer;user-select:none}
+.more summary::-webkit-details-marker{display:none}
+.more summary .ic{transition:transform .15s}
+.more[open] summary .ic{transform:rotate(90deg)}
+.more summary b{font-weight:600;color:var(--text-2)}
+.more-sum{margin-left:auto;font-variant-numeric:tabular-nums}
+.more-body{display:flex;flex-direction:column;gap:var(--sp-2);padding:0 0 var(--sp-3)}
+.f{display:flex;align-items:center;gap:var(--sp-2);font-size:var(--fs-xs);color:var(--text-3)}
+.f>span:first-child{width:44px;flex:none}
+.f input{width:96px;height:28px;border:1px solid var(--line);background:var(--well);border-radius:var(--r-s);padding:0 var(--sp-2);font-family:var(--mono);font-size:var(--fs-s);color:var(--text);outline:none}
+.f input.sz{width:68px}
+.f input:focus{border-color:color-mix(in srgb,var(--accent) 60%,var(--line))}
+.f .x{color:var(--text-3)}
+.f em{font-style:normal;color:var(--warn);font-family:var(--mono);font-size:var(--fs-xs)}
+
+.link-line{display:flex;align-items:center;justify-content:center;height:22px;color:var(--accent);position:relative}
+.link-line::before{content:"";position:absolute;top:0;bottom:0;left:50%;border-left:1px dashed color-mix(in srgb,var(--accent) 60%,transparent)}
+.link-line span{position:relative;background:var(--panel);padding:0 var(--sp-1);display:flex;align-items:center;gap:var(--sp-1);font-size:var(--fs-2xs)}
+.gap{height:var(--sp-2)}
+.add-step{margin-top:var(--sp-2);width:100%;height:40px;border:1px dashed var(--line-2);border-radius:var(--r-l);background:transparent;color:var(--text-2);display:flex;align-items:center;justify-content:center;gap:var(--sp-2);font-size:var(--fs-m)}
+.add-step:hover{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 6%,transparent)}
+
+.dock{border-top:1px solid var(--line);padding:var(--sp-3);background:var(--bg-2);display:flex;flex-direction:column;gap:var(--sp-2)}
+.dock-sum{display:flex;align-items:center;gap:var(--sp-1);font-size:var(--fs-xs);color:var(--text-3);flex-wrap:wrap;min-height:18px}
+.dock-sum .arrow{color:var(--text-3)}
+.dock-sum .r{display:inline-flex;align-items:center;gap:var(--sp-1);color:var(--text-2)}
+.dock-sum .r.done{color:var(--text-3)}
+.dock-sum .r.done .ic{color:var(--ok)}
+.dock-sum .r.bad{color:var(--danger);font-weight:600}
+.dock-sum .r.mute{color:var(--text-3)}
+.gen{position:relative;height:var(--gen-h);border:0;border-radius:var(--r-m);background:linear-gradient(135deg,var(--accent),var(--accent-2));color:var(--accent-ink);font-size:var(--fs-l);font-weight:750;letter-spacing:.06em;display:flex;align-items:center;justify-content:center;gap:var(--sp-2);overflow:hidden;box-shadow:0 8px 24px color-mix(in srgb,var(--accent) 25%,transparent)}
+.gen:hover:not(:disabled){filter:brightness(1.07)}
+.gen:disabled{background:var(--card-2);color:var(--text-3);cursor:not-allowed;box-shadow:none}
+.gen.running:disabled{color:var(--text);cursor:progress}
+.gen-fill{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,color-mix(in srgb,var(--accent) 45%,transparent),color-mix(in srgb,var(--accent-2) 45%,transparent));transition:width .2s}
+.gen .gl{position:relative;display:flex;align-items:center;gap:var(--sp-2);font-variant-numeric:tabular-nums}
+.gen kbd{position:absolute;right:var(--sp-3);font-family:var(--mono);font-size:var(--fs-2xs);opacity:.55;letter-spacing:0}
+.dock-why{font-size:var(--fs-s);line-height:1.4;display:flex;align-items:center;gap:var(--sp-1);color:var(--text-3)}
+.dock-why:empty{display:none}
+.dock-why.bad{color:var(--danger)}
+.dock-why.warn{color:var(--warn)}
+.dock-why .linkbtn{font-size:var(--fs-s)}
+
+/* ---------- 中间：画布 ---------- */
+.center{display:grid;grid-template-rows:var(--head-h) minmax(0,1fr) var(--foot-h);min-width:0;min-height:0;background:var(--bg)}
+.s-head{display:flex;align-items:center;gap:var(--sp-2);padding:0 var(--sp-4);border-bottom:1px solid var(--line);min-width:0}
+.s-label{display:flex;align-items:center;gap:var(--sp-2);font-size:var(--fs-s);color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.s-label b{color:var(--text);font-weight:600}
+.s-acts{margin-left:auto;display:flex;align-items:center;gap:var(--sp-2)}
+.seg{display:flex;background:var(--card);border:1px solid var(--line);border-radius:var(--r-pill);padding:var(--sp-0)}
+.seg button{display:flex;align-items:center;gap:var(--sp-1);height:24px;padding:0 var(--sp-3) 0 var(--sp-1);border:0;border-radius:var(--r-pill);background:transparent;color:var(--text-2);font-size:var(--fs-xs)}
+.seg button img{width:20px;height:20px;border-radius:50%;object-fit:cover}
+.seg button.on{background:var(--card-3);color:var(--text)}
+.seg button.fail{color:var(--danger)}
+.seg button .fx{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;background:color-mix(in srgb,var(--danger) 18%,transparent)}
+
+.stage{position:relative;min-height:0;overflow:hidden;background:radial-gradient(ellipse at 50% 45%,var(--bg-2),var(--bg) 72%)}
+.stage.drag-over{box-shadow:inset 0 0 0 2px var(--accent)}
+.frame{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);border-radius:var(--r-m);overflow:hidden;box-shadow:var(--shadow);background:var(--card)}
+.frame img{display:block;width:100%;height:100%;object-fit:cover;user-select:none;-webkit-user-drag:none}
+.frame canvas.mk{position:absolute;inset:0;width:100%;height:100%;opacity:var(--mask-alpha);pointer-events:none}
+.frame.painting{cursor:none}
+.frame.ph{background:repeating-linear-gradient(135deg,var(--card) 0 14px,var(--bg-2) 14px 28px);box-shadow:none;border:1px dashed var(--line-2)}
+.frame.ph canvas.mk{opacity:calc(var(--mask-alpha) * .6)}
+.ph-in{position:absolute;inset:0;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--sp-2);text-align:center;color:var(--text-3);font-size:var(--fs-s)}
+.ph-in .chip{margin-top:var(--sp-1)}
+.ph-in b{font-size:var(--fs-xl);color:var(--text-2);font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:.04em}
+.frame.dim img{filter:brightness(.45) saturate(.7)}
+.frame.shimmer::after{content:"";position:absolute;inset:0;background:linear-gradient(105deg,transparent 30%,var(--glow) 50%,transparent 70%);background-size:220% 100%;animation:sh 1.6s linear infinite}
+@keyframes sh{from{background-position:120% 0}to{background-position:-120% 0}}
+.cursor{position:absolute;border:1.5px solid var(--text);border-radius:50%;pointer-events:none;transform:translate(-50%,-50%);box-shadow:0 0 0 1px var(--scrim-2);display:none}
+
+.s-empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--sp-3);text-align:center;color:var(--text-3);padding:var(--sp-6)}
+.s-empty .big{width:88px;height:88px;border-radius:var(--r-l);border:1px dashed var(--line-2);display:grid;place-items:center;color:var(--text-2);background:var(--card)}
+.s-empty h2{margin:var(--sp-2) 0 0;font-size:var(--fs-xl);color:var(--text);font-weight:600;letter-spacing:.03em}
+.s-empty p{margin:0;font-size:var(--fs-s)}
+
+.brushbar{position:absolute;top:var(--sp-3);left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:var(--sp-1);padding:var(--sp-1);background:var(--scrim);backdrop-filter:blur(10px);border:1px solid var(--line-2);border-radius:var(--r-pill);box-shadow:var(--shadow-s);z-index:5;white-space:nowrap}
+.brushbar .tb{display:flex;align-items:center;gap:var(--sp-1);height:30px;padding:0 var(--sp-3);border:0;border-radius:var(--r-pill);background:transparent;color:var(--text-2);font-size:var(--fs-s)}
+.brushbar .tb:hover{color:var(--text);background:var(--card-3)}
+.brushbar .tb.on{background:var(--card-3);color:var(--text);box-shadow:inset 0 0 0 1px var(--line-2)}
+.brushbar .tb.done{background:var(--text);color:var(--bg);font-weight:600}
+.brushbar .sep{width:1px;height:18px;background:var(--line-2);margin:0 var(--sp-1)}
+.brushbar .size{display:flex;align-items:center;gap:var(--sp-2);padding:0 var(--sp-2);font-size:var(--fs-xs);color:var(--text-3);font-variant-numeric:tabular-nums}
+.brushbar input[type=range]{width:96px;accent-color:var(--accent)}
+.brushbar .pv{width:16px;height:16px;display:grid;place-items:center}
+.brushbar .pv i{display:block;border-radius:50%;background:var(--mask)}
+
+.banner{position:absolute;top:var(--sp-3);left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:var(--sp-2);padding:var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-3);border-radius:var(--r-pill);background:var(--scrim);backdrop-filter:blur(10px);border:1px solid var(--line-2);font-size:var(--fs-s);z-index:5;white-space:nowrap;box-shadow:var(--shadow-s)}
+.banner.bad{border-color:color-mix(in srgb,var(--danger) 55%,transparent)}
+.banner.bad .ic{color:var(--danger)}
+.banner.warn{border-color:color-mix(in srgb,var(--warn) 55%,transparent)}
+.banner.warn .ic{color:var(--warn)}
+.banner .chip{height:24px;font-size:var(--fs-xs)}
+.banner .mut{color:var(--text-3)}
+.banner.bad .chip .ic{color:inherit}
+
+.over-card{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:6;min-width:300px;padding:var(--sp-5) var(--sp-6);border-radius:var(--r-l);background:var(--scrim);backdrop-filter:blur(14px);border:1px solid var(--line-2);box-shadow:var(--shadow);display:flex;flex-direction:column;align-items:center;gap:var(--sp-2);text-align:center}
+.prog-k{display:flex;align-items:center;gap:var(--sp-2);font-size:var(--fs-s);color:var(--text-2)}
+.prog-pct{font-size:var(--fs-hero);font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.05}
+.prog-pct small{font-size:var(--fs-xl);color:var(--text-3);margin-left:var(--sp-0)}
+.prog-bar{width:240px;height:4px;border-radius:var(--r-pill);background:var(--card-3);overflow:hidden}
+.prog-bar i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-2));border-radius:var(--r-pill);transition:width .2s}
+.prog-steps{display:flex;gap:var(--sp-3);margin-top:var(--sp-1);font-size:var(--fs-xs);color:var(--text-3)}
+.prog-steps span{display:flex;align-items:center;gap:var(--sp-1)}
+.prog-steps span.on{color:var(--accent)}
+.prog-steps span.ok{color:var(--ok)}
+
+.toast{position:absolute;bottom:var(--sp-4);left:50%;transform:translate(-50%,8px);opacity:0;transition:.2s;padding:var(--sp-2) var(--sp-4);border-radius:var(--r-pill);background:var(--text);color:var(--bg);font-size:var(--fs-s);font-weight:600;z-index:8;pointer-events:none;white-space:nowrap}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+
+.s-foot{display:flex;align-items:center;gap:var(--sp-3);padding:0 var(--sp-4);border-top:1px solid var(--line);min-width:0;font-size:var(--fs-s);color:var(--text-2);white-space:nowrap;overflow:hidden}
+.meta{font-family:var(--mono);font-size:var(--fs-s);color:var(--text-2);font-variant-numeric:tabular-nums}
+.meta.k{color:var(--text-3);font-family:var(--font)}
+.sepdot{width:3px;height:3px;border-radius:50%;background:var(--text-3)}
+.f-sp{flex:1}
+.btn{display:inline-flex;align-items:center;gap:var(--sp-2);height:34px;padding:0 var(--sp-4);border-radius:var(--r-m);border:1px solid var(--line-2);background:var(--card-2);color:var(--text);font-size:var(--fs-m);text-decoration:none;font-weight:500}
+.btn:hover{border-color:var(--text-3)}
+.btn.pri{background:var(--text);color:var(--bg);border-color:var(--text);font-weight:650}
+.btn.pri:hover{filter:brightness(.92)}
+.hint{display:flex;align-items:center;gap:var(--sp-2);color:var(--text-2)}
+.sw{width:12px;height:12px;border-radius:var(--r-xs);background:color-mix(in srgb,var(--mask) 65%,transparent);border:1px solid var(--mask)}
+.warnt{color:var(--warn)}
+
+/* ---------- 右栏：历史 ---------- */
+.film{border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0}
+.film-head{display:flex;align-items:center;justify-content:space-between;height:var(--head-h);padding:0 var(--sp-3);font-size:var(--fs-s);color:var(--text-2);border-bottom:1px solid var(--line)}
+.film-head b{color:var(--text);font-weight:600}
+.film-list{flex:1;min-height:0;overflow-y:auto;padding:var(--sp-2) var(--sp-2) var(--sp-3);display:flex;flex-direction:column;gap:var(--sp-2);scrollbar-width:thin;scrollbar-color:var(--line-2) transparent}
+.film-list>*{flex:none}
+.film-g{font-size:var(--fs-2xs);color:var(--text-3);letter-spacing:.06em;padding:var(--sp-1) var(--sp-1) 0}
+.fi{display:block;width:100%;border:1px solid var(--line);border-radius:var(--r-m);background:var(--card);padding:0;overflow:hidden;text-align:left;position:relative}
+.fi:hover{border-color:var(--line-2)}
+.fi img{display:block;width:100%;aspect-ratio:1;object-fit:cover}
+.fi .fm{display:flex;align-items:center;gap:var(--sp-1);padding:var(--sp-1) var(--sp-2);font-size:var(--fs-2xs);color:var(--text-2);white-space:nowrap;overflow:hidden}
+.fi.sel{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.fi .new{position:absolute;top:var(--sp-1);right:var(--sp-1);font-size:var(--fs-2xs);padding:0 var(--sp-1);border-radius:var(--r-xs);background:var(--accent);color:var(--accent-ink);font-weight:700}
+.film-empty{font-size:var(--fs-xs);color:var(--text-3);text-align:center;padding:var(--sp-6) var(--sp-1)}
+
+/* ---------- 演示状态条（不属于产品） ---------- */
+.demo{position:fixed;left:0;right:0;bottom:0;height:var(--demo-h);display:flex;align-items:center;gap:var(--sp-1);padding:0 var(--sp-3);background:repeating-linear-gradient(-45deg,var(--demo-bg) 0 10px,var(--demo-bg-2) 10px 20px);border-top:1px dashed var(--demo-line);color:var(--demo-fg);font-size:var(--fs-xs);overflow-x:auto;white-space:nowrap;z-index:50;font-family:var(--mono);scrollbar-width:none}
+.demo .dl{font-weight:700;letter-spacing:.06em}
+.demo .dn{color:var(--demo-fg-2);margin-right:var(--sp-2)}
+.demo button{background:transparent;border:1px solid var(--demo-line);color:var(--demo-fg-2);border-radius:var(--r-xs);height:22px;padding:0 var(--sp-2);font-size:var(--fs-xs);font-family:var(--mono)}
+.demo button:hover{color:var(--demo-fg)}
+.demo button.on{background:var(--demo-fg);color:var(--demo-bg);border-color:var(--demo-fg);font-weight:700}
+@media (max-width:1200px){ .demo{gap:var(--sp-0);padding:0 var(--sp-2)} .demo button{padding:0 var(--sp-1)} .demo .dn{margin-right:var(--sp-1)} }
+</style>
+</head>
+<body>
+<!-- 蒙版 PNG（黑白）转成「亮度 = 透明度」，用于在画布上半透明叠色 -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="lumAlpha" color-interpolation-filters="sRGB"><feColorMatrix type="luminanceToAlpha"/></filter></svg>
+
+<div class="app">
+  <header class="top">
+    <div class="brand"><span class="logo" id="logo"></span>生图入口<small>Qwen-Image 2.1 · 本机</small></div>
+    <button class="status" id="status" data-act="ver" aria-haspopup="dialog" title="ComfyUI 版本和检查结果"></button>
+    <div class="pop" id="pop" role="dialog" aria-label="ComfyUI 版本" hidden></div>
+  </header>
+  <main class="work">
+    <aside class="left">
+      <div class="left-head"><b>步骤</b><span class="n" id="stepCount"></span></div>
+      <div class="steps" id="steps"></div>
+      <div class="dock" id="dock"></div>
+    </aside>
+    <section class="center">
+      <div class="s-head" id="sHead"></div>
+      <div class="stage" id="stage"></div>
+      <div class="s-foot" id="sFoot"></div>
+    </section>
+    <aside class="film">
+      <div class="film-head"><b>历史</b><span id="filmCount"></span></div>
+      <div class="film-list" id="film"></div>
+    </aside>
+  </main>
+</div>
+<input type="file" id="pick" accept="image/*" multiple class="sr">
+
+<nav class="demo" id="demo"><span class="dl">演示状态</span><span class="dn">演示用，真实页面没有</span></nav>
+
+<script>
+/* ============================================================
+   MOCK：模拟数据（演示用）。真实页面这些来自后端 /api/plan、/api/status、/api/generate 等接口：
+   - GET  /api/status     → MOCK.status.*：在线 / 正在升级、版本、上次检查（只在升级、回滚时跑）、最近一次操作、
+                            各路由现在能不能用（每次实时查）、limits（最多几张图、尺寸取整）、size_presets
+   - GET  /api/history    → MOCK.history：之前出过的图，新的在前
+   - POST /api/images     → MOCK.images：已经在后端的图（上传后、出图后都有 id）
+   - POST /api/plan       → 每步 route / output / requested / reject / unavailable，由下面「后端替身」的 mockPlan 现算
+   - POST /api/generate   → 只回 {job_id}；不合格 422（带 plan），不可用 503
+   - GET  /api/jobs/{id}  → 进度、每步结果（图、实际尺寸、seed）、失败时的 ComfyUI 原文
+   字段名、结构、枚举值都和接口契约 v1 一致；以 _ 开头的字段只给替身自己用，不是接口字段。
+   ============================================================ */
+const ROUTE = { t2i:'文生图', ref:'参考图编辑', mask:'蒙版改写' };   // 路由的中文名，只用来显示
+const P1 = '画一只坐在雪地里的赤狐，金色侧光。';
+const P2 = '把狐狸换成一只白色北极狐。';
+const V_OLD = { tag:null, commit:'0b05cd8' }, V_NEW = { tag:'v0.42.5', commit:'483dae4' };
+const MASK_FILE = 'models/model_patches/qwen_image_2.1_fun_controlnet_union_int8_convrot.safetensors';
+const routesAll = (available, reason) => ({ t2i:{ available, reason }, ref:{ available, reason }, mask:{ available, reason } });
+const STATUS_ONLINE = {
+  backend:'comfyui', host:'127.0.0.1:8188', online:true, upgrading:null, version:V_NEW,
+  last_check:{ at:'2026-10-26T06:02:00Z', version:V_NEW, items:[
+    { name:'starts', label:'能启动',     ok:true, note:null },
+    { name:'nodes',  label:'节点齐全',   ok:true, note:null },
+    { name:'routes', label:'三条路试跑', ok:true, note:null } ] },
+  last_operation:{ at:'2026-10-26T06:02:00Z', kind:'upgrade', from:V_OLD, to:V_NEW, result:'passed', note:null },
+  routes:routesAll(true, null),
+  limits:{ max_images:4, max_edge:1920, size_multiple:32, default_size:{ width:1024, height:1024 } },
+  size_presets:[ { label:'1:1', width:1024, height:1024 }, { label:'16:9', width:1536, height:864 }, { label:'9:16', width:864, height:1536 } ],
+};
+const MOCK = {
+  status: {                                   // ← GET /api/status 的几种情况
+    online:    STATUS_ONLINE,
+    down:      { ...STATUS_ONLINE, online:false, routes:routesAll(false, 'ComfyUI 没开') },
+    nofile:    { ...STATUS_ONLINE, routes:{ ...routesAll(true, null), mask:{ available:false, reason:'缺少蒙版权重 ' + MASK_FILE } } },
+    upgrading: { ...STATUS_ONLINE, online:false, upgrading:{ target:'v0.42.5', since:'2026-10-26T06:00:00Z' },
+                 version:V_OLD, last_check:null, last_operation:null, routes:routesAll(false, 'ComfyUI 正在升级') },
+  },
+  images: [                                   // ← POST /api/images 的 201 返回体（演示里当作已经上传过的图）
+    { id:'img_fox',     url:'assets/fox.jpg',      width:960, height:960 },
+    { id:'img_arctic',  url:'assets/arctic.jpg',   width:960, height:960 },
+    { id:'img_sheet',   url:'assets/sheet.jpg',    width:960, height:540 },
+    { id:'img_photo',   url:'assets/photo.jpg',    width:960, height:544 },
+    { id:'img_foxmask', url:'assets/fox-mask.png', width:960, height:960, _lit:true },   // 已涂好的蒙版：白色矩形盖住狐狸
+  ],
+  results: {                                  // ← GET /api/jobs/{id} 里每步的 image（演示里「之前跑出来的」）
+    r1: { id:'img_r1', url:'assets/fox.jpg',    width:960, height:960, route:'t2i',  seed:428193 },
+    r2: { id:'img_r2', url:'assets/arctic.jpg', width:960, height:960, route:'mask', seed:771052 },
+  },
+  history: { items:[                          // ← GET /api/history
+    { id:'img_h2', url:'assets/photo.jpg', width:960, height:544, route:'ref', seed:551203, instruction:'照图 2 的真人摄影风格，重画图 1 的角色设定卡。',
+      created_at:'2026-10-25T21:14:00+08:00', job_id:'job_7c1e', step:1 },
+    { id:'img_h1', url:'assets/sheet.jpg', width:960, height:544, route:'ref', seed:190733, instruction:'把设定卡的配色换成深蓝 + 米白。',
+      created_at:'2026-10-25T20:52:00+08:00', job_id:'job_7b90', step:1 },
+  ] },
+  fail_raw: 'torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 2.00 GiB (GPU 0; 23.56 GiB total capacity)',
+  outputs: { t2i:'assets/fox.jpg', mask:'assets/arctic.jpg', ref:'assets/photo.jpg', ref_fox:'assets/arctic.jpg' },   // 替身出图时按路由挑的示例图
+};
+
+/* ============================================================
+   后端替身（演示用，真实页面没有）
+   页面只通过下面 6 个 mock 函数和后端打交道，一个函数对应一个接口，入参和返回值的字段、结构和契约一致；
+   都返回 Promise<{ status, body }>（status = HTTP 状态码，body = 响应 JSON）。真实页面把它们一对一换成 fetch。
+     mockStatus()        → GET  /api/status
+     mockHistory(limit)  → GET  /api/history?limit=50
+     mockUpload(file)    → POST /api/images（multipart file）
+     mockPlan(body)      → POST /api/plan
+     mockGenerate(body)  → POST /api/generate
+     mockJob(id)         → GET  /api/jobs/{id}
+   BE 是替身自己的「后端状态」，页面渲染代码不读它（只有「演示状态」布置场景时写它）。
+   路由和拒绝规则只在这里（planOf）有一份，页面里没有。
+   ============================================================ */
+const BE = { status:null, images:{}, jobs:{}, history:[], freeze:null, downFor:null };
+const clone = o => JSON.parse(JSON.stringify(o));
+const reply = (status, body) => Promise.resolve({ status, body:clone(body) });
+const pub = o => Object.fromEntries(Object.entries(o).filter(([k]) => k[0] !== '_'));
+/* 新 id：在替身已有的图和任务里查重，保证不会和演示数据（img_r1、img_r2…）撞 */
+function newId(prefix){ let id; do id = prefix + Math.random().toString(36).slice(2, 10); while (BE.images[id] || BE.jobs[id]); return id; }
+function beReset(){
+  Object.assign(BE, { status:MOCK.status.online, images:{}, jobs:{}, history:[], freeze:null, downFor:null });
+  [...MOCK.images, ...Object.values(MOCK.results), ...MOCK.history.items].forEach(im => { BE.images[im.id] = { ...im }; });
+}
+
+/* 替身 · GET /api/status */
+function mockStatus(){
+  if (BE.downFor !== null && BE.downFor-- <= 0){ BE.status = MOCK.status.online; BE.downFor = null; }   // 演示：点「重新检测」时 ComfyUI 已经打开了
+  return reply(200, BE.status);
+}
+
+/* 替身 · GET /api/history?limit=50（新的在前） */
+function mockHistory(limit = 50){ return reply(200, { items:BE.history.slice(0, limit) }); }
+
+/* 替身 · POST /api/images（multipart: file=<png|jpg|webp>）→ 201 {id, url, width, height} / 422 {code:'bad_image'} */
+async function mockUpload(file){
+  let bmp;
+  try { bmp = await createImageBitmap(file); }
+  catch (_){ return reply(422, { code:'bad_image', message:'这张图打不开，换一张试试。' }); }
+  const id = newId('img_'), url = URL.createObjectURL(file);
+  BE.images[id] = { id, url, width:bmp.width, height:bmp.height, _bmp:bmp };
+  return reply(201, { id, url, width:bmp.width, height:bmp.height });
+}
+
+/* 替身 · POST /api/plan（只规划不运行；页面实时调用）→ 200 {ok, steps:[{step, route, output, requested, reject, unavailable}]} */
+function mockPlan(body){ return reply(200, planOf(body)); }
+
+/* 替身 · POST /api/generate → 202 {job_id} / 422 {code:'rejected', message, plan} / 503 {code, message, raw} */
+function mockGenerate(body){
+  const plan = planOf(body);
+  if (plan.steps.some(p => p.reject)) return reply(422, { code:'rejected', message:'有步骤要改一下', plan });
+  const u = plan.steps.find(p => p.unavailable);
+  if (u) return reply(503, { code:u.unavailable.code, message:UNAV_MSG[u.unavailable.code], raw:u.unavailable.message });
+  const id = newId('job_');
+  BE.jobs[id] = { id, state:'queued', first_step:body.first_step,
+    steps:plan.steps.map(p => ({ step:p.step, route:p.route, state:'queued', progress:null, image:null, error:null })),
+    _body:clone(body), _plan:plan };
+  return reply(202, { job_id:id });
+}
+const UNAV_MSG = { comfy_down:'ComfyUI 没开', missing_file:'缺少文件', missing_node:'缺少节点', upgrading:'ComfyUI 正在升级' };
+
+/* 替身 · GET /api/jobs/{id} → {id, state, first_step, steps:[{step, route, state, progress, image, error}]}
+   模拟：每查一次往前推一点；演示「运行中」时停在 BE.freeze */
+function mockJob(id){
+  const j = BE.jobs[id];
+  if (!j) return reply(404, { code:'not_found', message:'没有这个任务' });
+  if (j.state === 'queued' || j.state === 'running'){
+    const s = j.steps.find(x => x.state === 'running') || j.steps.find(x => x.state === 'queued');
+    j.state = s.state = 'running';
+    s.progress = BE.freeze !== null ? BE.freeze : Math.min(1, (s.progress || 0) + .05 + Math.random() * .07);
+    if (s.progress >= 1) finishStep(j, s);
+  }
+  return reply(200, pub(j));
+}
+function finishStep(j, s){
+  const k = s.step - j.first_step, q = j._body.steps[k], out = j._plan.steps[k].output;
+  const lead = q.images[0] === '$prev' ? j.steps[k - 1].image : BE.images[q.images[0]];
+  const url = s.route === 'ref' ? (lead && lead.url === MOCK.outputs.t2i ? MOCK.outputs.ref_fox : MOCK.outputs.ref) : MOCK.outputs[s.route];
+  const image = { id:newId('img_'), url, width:out.width, height:out.height, route:s.route, seed:q.seed != null ? q.seed : Math.floor(Math.random() * 1e6) };
+  BE.images[image.id] = { id:image.id, url, width:out.width, height:out.height };
+  BE.history.unshift({ ...image, instruction:q.instruction, created_at:new Date().toISOString(), job_id:j.id, step:s.step });
+  Object.assign(s, { state:'done', progress:null, image });
+  if (j.steps.every(x => x.state === 'done')) j.state = 'done';
+}
+
+/* 规划：路由表 + 校验（真实页面这些在后端，页面不自己算） */
+function planOf(body){
+  const s = BE.status, L = s.limits, out = [];
+  const snap = v => Math.max(L.size_multiple, Math.round(v / L.size_multiple) * L.size_multiple);
+  body.steps.forEach((q, k) => {
+    const imgs = q.images || [], im = id => BE.images[id];
+    const base = imgs[0] === '$prev' ? (k > 0 ? out[k - 1].output : null) : im(imgs[0]) || null;
+    const mk = q.mask ? im(q.mask) : null;
+    let reject = null, route = null, output = null, requested = null, unavailable = null;
+    const no = (code, message) => { reject = { code, message }; };
+    if (imgs.includes('$prev') && k === 0) no('prev_on_first_step', '这一步前面没有图可接，不用「上一步的图」就行。');
+    else if (imgs.length > L.max_images) no('too_many_images', `放了 ${imgs.length} 张图，最多 ${L.max_images} 张（「上一步的图」也算 1 张）。去掉 ${imgs.length - L.max_images} 张就行。`);
+    else if (imgs.some(id => id !== '$prev' && !im(id)) || (q.mask && !mk)) no('unknown_image', '有张图找不到了，重新放一次。');
+    else if (q.mask && !imgs.length) no('mask_without_image', '有蒙版但没有底图。放一张图，或者去掉蒙版。');
+    else if (imgs.length && (q.width || q.height)) no('size_with_images', '带图时尺寸跟第 1 张图走，宽高不用填。');
+    else if (mk && !maskLit(mk)) no('mask_empty', '蒙版是空的，没有要重画的地方。涂一点再生成。');
+    else if (mk && base && (mk.width !== base.width || mk.height !== base.height)) no('mask_size_mismatch', '蒙版和底图大小对不上，重新涂一次。');
+    else if (!String(q.instruction || '').trim()) no('empty_instruction', '还没写指令');
+    if (!reject){
+      route = !imgs.length ? 't2i' : q.mask ? 'mask' : 'ref';
+      if (route === 't2i'){
+        const w = q.width || L.default_size.width, h = q.height || L.default_size.height;
+        output = { width:snap(w), height:snap(h) };
+        if ((q.width || q.height) && (output.width !== w || output.height !== h)) requested = { width:w, height:h };
+      } else if (base){
+        const z = Math.min(1, L.max_edge / Math.max(base.width, base.height));
+        output = { width:snap(base.width * z), height:snap(base.height * z) };
+      }
+      unavailable = s.upgrading ? { code:'upgrading', message:`ComfyUI 正在升级到 ${s.upgrading.target}` }
+        : !s.online ? { code:'comfy_down', message:`连不上 ComfyUI（${s.host}）` }
+        : !s.routes[route].available ? { code:'missing_file', message:s.routes[route].reason } : null;
+    }
+    out.push({ step:body.first_step + k, route, output, requested, reject, unavailable });
+  });
+  return { ok:out.every(p => !p.reject && !p.unavailable), steps:out };
+}
+/* 蒙版里有没有要重画的地方：亮度 ≥ 0.5 的像素 */
+function maskLit(m){
+  if (m._lit === undefined){
+    if (!m._bmp) return true;
+    const c = document.createElement('canvas'); c.width = m.width; c.height = m.height;
+    const x = c.getContext('2d'); x.drawImage(m._bmp, 0, 0);
+    const d = x.getImageData(0, 0, c.width, c.height).data; m._lit = false;
+    for (let p = 0; p < d.length; p += 4) if (.299 * d[p] + .587 * d[p + 1] + .114 * d[p + 2] >= 127.5){ m._lit = true; break; }
+  }
+  return m._lit;
+}
+
+/* ============================================================
+   演示状态（演示用，真实页面没有）：每个状态 = 页面上的步骤 + 后端替身里的状态
+   ============================================================ */
+let uid = 0;
+const step = (o = {}) => ({ id:'s' + (++uid), instruction:'', items:[], mask:null, seed:'', width:'', height:'', moreOpen:false, run:null, rawOpen:false, ...o });
+const IMG = id => ({ kind:'img', ...pub(MOCK.images.find(x => x.id === id)) });
+const PREV = () => ({ kind:'prev' });
+const doneRun = (n, k) => ({ step:n, route:MOCK.results[k].route, state:'done', progress:null, image:{ ...MOCK.results[k] }, error:null });
+const RES_META = { r1:{ instruction:P1, job_id:'job_d1', step:1, ago:4 }, r2:{ instruction:P2, job_id:'job_d2', step:2, ago:1 } };
+function histOf(k){ const m = RES_META[k]; return { ...MOCK.results[k], instruction:m.instruction, created_at:new Date(Date.now() - m.ago * 60e3).toISOString(), job_id:m.job_id, step:m.step }; }
+/* 已经上传过的蒙版 img_foxmask。画板照 assets/fox-mask.png 的白色矩形画：file:// 下把 PNG 直接画进画板会污染画布，之后就导不出蒙版了 */
+function demoMask(){
+  const m = newMask(960, 960), x = m.canvas.getContext('2d');
+  x.fillStyle = cssVar('--mask'); x.fillRect(196, 130, 686, 762); m.id = 'img_foxmask';
+  return m;
+}
+const twoSteps = () => [ step({ instruction:P1, width:'960', height:'960' }), step({ instruction:P2, items:[PREV()] }) ];
+/* 第 1 步已出红狐；第 2 步用上一步的图，蒙版涂在红狐上 */
+const chainSteps = () => { const s = twoSteps(); s[0].run = doneRun(1, 'r1'); s[1].mask = demoMask(); return s; };
+const SCEN = {
+  blank:  () => ({ steps:[ step() ] }),
+  t2i:    () => ({ steps:[ step({ instruction:P1, width:'950', height:'950', moreOpen:true }) ] }),
+  ref:    () => ({ steps:[ step({ instruction:'照图 2 的真人摄影风格，重画图 1 的角色设定卡。', items:[IMG('img_sheet'), IMG('img_photo')] }) ] }),
+  mask:   () => ({ steps:[ step({ instruction:P2, items:[IMG('img_fox')], mask:demoMask() }) ], mode:'mask' }),
+  'wait-mask': () => ({ steps:twoSteps(), sel:1 }),
+  chain:  () => ({ steps:chainSteps(), sel:1, hist:['r1'] }),
+  /* 第 1 步出过图、第 2 步在那张图上涂了蒙版；然后改了第 1 步的指令 → 第 1 步的图作废，第 2 步的蒙版留着 */
+  'stale-mask': () => { const s = chainSteps(); s[0].run = null; s[0].instruction = '画一只坐在雪地里的赤狐，傍晚逆光。'; return { steps:s, sel:1, hist:['r1'], quiet:true }; },
+  reject: () => ({ steps:[ step({ instruction:P1, width:'960', height:'960' }),
+                           step({ instruction:'参考这几张图，给狐狸围一条深蓝色围巾。', items:[PREV(), IMG('img_sheet'), IMG('img_photo'), IMG('img_fox'), IMG('img_arctic')] }) ], sel:1 }),
+  running:() => ({ steps:twoSteps(), autorun:true, freeze:.42 }),
+  done:   () => { const s = chainSteps(); s[1].run = doneRun(2, 'r2'); return { steps:s, sel:1, view:'result', hist:['r2', 'r1'] }; },
+  down:   () => ({ steps:[ step({ instruction:P1, width:'950', height:'950' }) ], status:'down' }),
+  nofile: () => ({ steps:[ step({ instruction:P2, items:[IMG('img_fox')], mask:demoMask() }) ], status:'nofile' }),
+  upgrading: () => ({ steps:chainSteps(), sel:1, hist:['r1'], status:'upgrading' }),
+  fail:   () => { const s = chainSteps(); s[1].run = { step:2, route:'mask', state:'failed', progress:null, image:null, error:{ raw:MOCK.fail_raw } };
+                  return { steps:s, sel:1, viewResultOf:0, hist:['r1'] }; },
+};
+const DEMO = [ ['blank','空白'],['t2i','文生图'],['ref','参考图 ×2'],['mask','蒙版改写'],['wait-mask','两步·未出图'],['chain','两步·已涂蒙版'],['stale-mask','蒙版在旧图上'],
+               ['reject','被拒'],['running','运行中'],['done','完成'],['down','503 没开'],['nofile','503 缺文件'],['upgrading','503 升级中'],['fail','第 2 步失败'] ];
+
+/* ============================================================
+   页面状态 + 渲染（只读接口返回值，没有路由 / 拒绝规则）
+   ============================================================ */
+let S, PLAN = [], timer = null, planSeq = 0, loadSeq = 0;
+const $ = (s, r = document) => r.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
+const stepIdx = id => S.steps.findIndex(s => s.id === id);
+const stepById = id => S.steps.find(s => s.id === id);
+const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const pl = i => PLAN[i] || null;                                            // 第 i 步的规划（/api/plan 的 steps[]；已完成的步骤没有）
+const isDone = st => !!(st && st.run && st.run.state === 'done');
+const prevImage = i => i > 0 && isDone(S.steps[i - 1]) ? S.steps[i - 1].run.image : null;
+const waitsPrev = i => { const it = S.steps[i].items[0]; return !!(it && it.kind === 'prev' && i > 0 && !prevImage(i)); };
+const leadImage = i => { const it = S.steps[i].items[0]; return !it ? null : it.kind === 'prev' ? prevImage(i) : it; };
+const routeOf = i => isDone(S.steps[i]) ? S.steps[i].run.image.route : (pl(i) && pl(i).route) || null;
+const outOf = i => isDone(S.steps[i]) ? S.steps[i].run.image : (pl(i) && pl(i).output) || null;
+const painting = st => !!(st && S.mode === 'mask' && S.view && S.view.id === st.id);
+const isSoft = r => !!(r && r.code === 'empty_instruction');               // 契约：没写指令显示成灰色提示，不算红色错误
+const GLOBAL_UNAV = ['comfy_down', 'upgrading'];                           // 整个 ComfyUI 的问题：顶栏、横幅、生成按钮说，不在每张卡上重复
+/* 第 i 步现在要显示的拒绝（来自 /api/plan）。正在涂的那一步，蒙版类结论等点「涂好了」重新规划后再说 */
+function rejectOf(st, i){ const p = pl(i), r = p && p.reject; return !r || (painting(st) && /^mask_/.test(r.code)) ? null : r; }
+/* 拒绝原因 → 修复按钮：页面只按 reject.code 选按钮 */
+const FIX = { mask_without_image:['drop-mask', '去掉蒙版'], size_with_images:['clear-size', '清掉宽高'], mask_empty:['paint', '接着涂'],
+              mask_size_mismatch:['repaint', '重新涂'], prev_on_first_step:['toggle-prev', '不用上一步的图'] };
+/* 蒙版和底图一样大才叠上去 / 才能接着改（尺寸对不上就不拉伸显示，只能重新涂） */
+const fits = (m, b) => !!(m && b && m.w === b.width && m.h === b.height);
+const pad2 = n => String(n).padStart(2, '0');
+const fmtT = iso => { const d = new Date(iso); return `${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };   // 按本地时区显示（后端给 Z 或带时区偏移都行）
+const verOf = v => v.tag || v.commit;
+function when(x){
+  const t = new Date(x.created_at), now = new Date(), day = d => d.toDateString();
+  if (now - t >= 0 && now - t < 10 * 60e3) return '刚才';
+  if (day(t) === day(now)) return '今天';
+  const y = new Date(now); y.setDate(now.getDate() - 1);
+  return day(t) === day(y) ? '昨天' : `${t.getMonth() + 1}-${t.getDate()}`;
+}
+
+/* ---------- 请求体：只发还没完成的步骤；已完成步骤的图用它的 id 引用 ---------- */
+const pendingIdx = (upto = Infinity) => S.steps.map((s, i) => i).filter(i => i <= upto && !isDone(S.steps[i]));
+function segments(upto){   // 没完成的步骤按连续段分批（每批的步号 = first_step 起连续编号）
+  const out = [];
+  pendingIdx(upto).forEach(i => { const g = out[out.length - 1]; if (g && g[g.length - 1] === i - 1) g.push(i); else out.push([i]); });
+  return out;
+}
+function bodyFor(seg){
+  return { first_step:seg[0] + 1, steps:seg.map(i => {
+    const st = S.steps[i], prev = prevImage(i);
+    return { instruction:st.instruction,
+             images:st.items.map(it => it.kind === 'prev' ? (prev ? prev.id : '$prev') : it.id),
+             mask:st.mask && st.mask.id || null,                              // 正在涂、还没点「涂好了」的蒙版不发
+             seed:st.seed ? +st.seed : null,
+             width:st.width ? +st.width : null, height:st.height ? +st.height : null };
+  }) };
+}
+async function replan(){
+  const seq = ++planSeq, P = [];
+  const res = await Promise.all(segments().map(seg => mockPlan(bodyFor(seg))));
+  res.forEach(r => r.body.steps.forEach(p => { P[p.step - 1] = p; }));
+  if (seq === planSeq) PLAN = P;
+}
+const update = () => replan().then(renderAll);
+
+async function load(hash){
+  const tok = ++loadSeq; clearTimeout(timer);
+  let [name, ...flags] = (hash || '').split('&');   // 例：#done&ver 打开版本浮层，#blank&more 展开「更多」（截图用）
+  if (!SCEN[name]) name = 'blank';
+  beReset();
+  const d = SCEN[name]();
+  BE.status = MOCK.status[d.status || 'online']; BE.freeze = d.freeze !== undefined ? d.freeze : null; BE.downFor = d.status === 'down' ? 1 : null;
+  BE.history = [ ...(d.hist || []).map(histOf), ...clone(MOCK.history.items) ];
+  const sel = d.steps[d.sel || 0];
+  S = { name, steps:d.steps, status:null, sel:sel.id, view:{ kind:'step', id:sel.id }, mode:'view', brush:{ size:64, erase:false },
+        job:null, history:[], fresh:new Set(d.quiet ? [] : (d.hist || []).map(k => MOCK.results[k].id)), popOpen:flags.includes('ver') };
+  if (flags.includes('more')) sel.moreOpen = true;
+  if (d.mode === 'mask'){ S.mode = 'mask'; S.view = { kind:'item', id:sel.id, idx:0 }; }
+  if (d.view === 'result') S.view = { kind:'result', id:sel.id };
+  if (d.viewResultOf !== undefined) S.view = { kind:'result', id:d.steps[d.viewResultOf].id };
+  const [st, hi] = await Promise.all([mockStatus(), mockHistory()]);
+  if (tok !== loadSeq) return;
+  S.status = st.body; S.history = hi.body.items;
+  await replan(); if (tok !== loadSeq) return;
+  renderAll();
+  const focus = $('.card.bad') || $('.card.sel'); if (focus) focus.scrollIntoView({ block:'nearest' });
+  document.querySelectorAll('#demo button').forEach(b => b.classList.toggle('on', b.dataset.state === name));
+  if (d.autorun) startRun();
+}
+
+function renderAll(){ renderTop(); renderSteps(); renderDock(); renderStage(); renderFilm(); }
+/* 打字时只刷新会变的部分，不重建输入框（保持焦点） */
+function refreshDyn(){
+  S.steps.forEach((st, i) => {
+    const el = $(`.card[data-step="${st.id}"]`); if (!el) return;
+    el.className = cardClass(st, i);
+    $('.c-head', el).innerHTML = headHTML(st, i);
+    $('.c-tray', el).innerHTML = trayHTML(st, i);
+    $('.c-tools', el).innerHTML = toolsHTML(st, i);
+    $('.c-msg', el).innerHTML = msgHTML(st, i);
+    const ms = $('.more-sum', el); if (ms) ms.textContent = moreSum(st, i);
+    const rh = $('.round-hint', el); if (rh) rh.textContent = roundHint(i);
+    el.querySelectorAll('.f-size').forEach(f => { f.hidden = !showSize(st); });
+    el.querySelectorAll('[data-act="preset"]').forEach(b => b.classList.toggle('on', presetOn(st, b.dataset.w, b.dataset.h)));
+  });
+  drawMaskThumbs(); renderDock();
+  if (S.view && (S.view.kind === 'step' || S.view.kind === 'item')) renderStage();
+}
+
+/* ---------- 顶栏（GET /api/status，只显示，不能操作） ---------- */
+const offRoutes = s => Object.keys(s.routes).filter(k => !s.routes[k].available);
+function renderTop(){
+  const s = S.status, el = $('#status'), v = `<span class="ver">${esc(verOf(s.version))}</span>`, off = offRoutes(s);
+  const passed = s.last_check && s.last_check.items.every(x => x.ok);
+  let cls = 'status', txt = `ComfyUI ${v}${s.last_check ? (passed ? ' · 检查通过' : ' · 检查没过') : ''}`;
+  if (s.upgrading){ cls += ' warn busy'; txt = `正在升级到 <span class="ver">${esc(s.upgrading.target)}</span>`; }
+  else if (!s.online){ cls += ' down'; txt = `ComfyUI ${v} · 没开`; }
+  else if (off.length){ cls += ' warn'; txt = `ComfyUI ${v} · ${off.map(k => ROUTE[k]).join('、')}不可用`; }
+  else if (s.last_check && !passed) cls += ' warn';
+  el.className = cls + (S.popOpen ? ' open' : '');
+  el.innerHTML = `<i class="dot"></i>${txt}${icon(S.popOpen ? 'up' : 'down', 12)}`;
+  el.setAttribute('aria-expanded', S.popOpen ? 'true' : 'false');
+  const pop = $('#pop'); pop.hidden = !S.popOpen; pop.innerHTML = S.popOpen ? popHTML(s) : '';
+}
+/* 版本浮层：只显示，不放任何操作按钮（升级 / 回滚走命令行） */
+function popHTML(s){
+  const off = offRoutes(s);
+  const tag = s.upgrading ? ['warn', '正在升级'] : !s.online ? ['bad', '没开'] : off.length ? ['warn', off.map(k => ROUTE[k]).join('、') + '不可用'] : ['ok', '在线'];
+  const cur = s.upgrading ? `${verOf(s.version)} → ${s.upgrading.target}` : [s.version.tag, s.version.commit].filter(Boolean).join(' · ');
+  const c = s.last_check;
+  const checks = c
+    ? `<div class="pop-row"><div class="pop-k"><span>上次检查（${fmtT(c.at)}）</span><span>${esc(verOf(c.version))}</span></div><div class="pop-checks">${c.items.map(x => x.ok
+        ? `<span class="ok">${icon('check', 14)}${esc(x.label)}</span>`
+        : `<span class="no">${icon('x', 14)}${esc(x.label)}${x.note ? `<em>${esc(x.note)}</em>` : ''}</span>`).join('')}</div></div>`
+    : `<div class="pop-row"><div class="pop-k">检查</div><div class="pop-op">${s.upgrading ? `升级完自动检查，没过就退回 ${esc(verOf(s.version))}` : '还没检查过'}</div></div>`;
+  const rs = Object.entries(s.routes), same = rs.every(([, r]) => !r.available && r.reason === rs[0][1].reason);
+  const routes = same ? `<span class="no">${icon('x', 14)}都用不了<em>${esc(rs[0][1].reason)}</em></span>`
+    : rs.map(([k, r]) => r.available ? `<span class="ok">${icon('check', 14)}${ROUTE[k]}</span>`
+                                     : `<span class="no">${icon('x', 14)}${ROUTE[k]}</span><span class="pop-why">${esc(r.reason)}</span>`).join('');
+  const o = s.last_operation;
+  const op = s.upgrading ? ['正在升级', `${fmtT(s.upgrading.since)} 开始：${esc(verOf(s.version))} → ${esc(s.upgrading.target)}`]
+    : o ? ['最近一次操作', `${fmtT(o.at)} ${o.kind === 'upgrade' ? '升级' : '回滚'} ${esc(verOf(o.from))} → ${esc(verOf(o.to))}，${o.result === 'passed' ? '检查通过' : '检查没过，已退回' + (o.note ? `（${esc(o.note)}）` : '')}`] : null;
+  return `<div class="pop-h">ComfyUI<span class="tag ${tag[0]}">${tag[1]}</span></div>
+    <div class="pop-row"><div class="pop-k">当前版本</div><div class="pop-v">${esc(cur)}</div></div>
+    ${checks}
+    <div class="pop-row"><div class="pop-k"><span>现在能用</span><span>实时</span></div><div class="pop-checks pop-routes">${routes}</div></div>
+    ${op ? `<div class="pop-row"><div class="pop-k">${op[0]}</div><div class="pop-op">${op[1]}</div></div>` : ''}
+    <div class="pop-cli">检查只在升级、回滚时跑。升级、回滚用命令行：<code>image-api comfy upgrade &lt;版本&gt;</code> · <code>image-api comfy rollback</code></div>`;
+}
+
+/* ---------- 左栏：步骤卡 ---------- */
+function cardClass(st, i){
+  const r = st.run, p = pl(i), rej = rejectOf(st, i);
+  const bad = (r && r.state === 'failed') || (rej && !isSoft(rej)) || (p && p.unavailable && !GLOBAL_UNAV.includes(p.unavailable.code));
+  return ['card', S.sel === st.id ? 'sel' : '', bad ? 'bad' : '', r && r.state === 'running' ? 'running' : '', S.job ? 'locked' : ''].join(' ');
+}
+function renderSteps(){
+  $('#stepCount').textContent = S.steps.length + ' 步';
+  let h = '';
+  S.steps.forEach((st, i) => {
+    if (i > 0) h += st.items.some(it => it.kind === 'prev')
+      ? `<div class="link-line"><span>${icon('link', 12)}接上一步的图</span></div>` : `<div class="gap"></div>`;
+    h += cardHTML(st, i);
+  });
+  if (!S.job) h += `<button class="add-step" data-act="add-step">${icon('plus', 16)}下一步</button>`;
+  $('#steps').innerHTML = h;
+  document.querySelectorAll('.c-prompt').forEach(autoGrow);
+  drawMaskThumbs();
+}
+function cardHTML(st, i){
+  return `<section class="${cardClass(st, i)}" data-step="${st.id}">
+    <header class="c-head">${headHTML(st, i)}</header>
+    <div class="c-body">
+      <textarea class="c-prompt" data-field="instruction" rows="2" placeholder="${i === 0 ? '想要什么？比如：画一只坐在雪地里的赤狐' : '这一步怎么改？比如：把狐狸换成北极狐'}">${esc(st.instruction)}</textarea>
+      <div class="c-tray">${trayHTML(st, i)}</div>
+      <div class="c-tools">${toolsHTML(st, i)}</div>
+    </div>
+    <div class="c-msg">${msgHTML(st, i)}</div>
+    ${moreHTML(st, i)}
+  </section>`;
+}
+function headHTML(st, i){
+  const r = st.run, rej = rejectOf(st, i), rt = routeOf(i), out = outOf(i);
+  /* route 为 null（被拒）时不显示路由名：没写指令是灰色「待写指令」，其它是红色「要改一下」 */
+  const tag = rej ? (isSoft(rej) ? `<span class="tag mute">待写指令</span>` : `<span class="tag bad">要改一下</span>`)
+            : rt ? `<span class="tag ${rt}">${ROUTE[rt]}</span>` : '';
+  const size = !rej && out ? `<span class="c-size">${out.width}×${out.height}</span>` : '';
+  let stt = '';
+  if (r){
+    if (r.state === 'running') stt = `<span class="st run"><i class="spin"></i>进行中 ${Math.floor((r.progress || 0) * 100)}%</span>`;
+    else if (r.state === 'queued') stt = `<span class="st">排队中</span>`;
+    else if (r.state === 'done') stt = `<span class="st ok">${icon('check', 14)}</span><img class="st-thumb" src="${r.image.url}" data-act="view-result" title="看这一步的图" alt="">`;
+    else if (r.state === 'failed') stt = `<span class="st fail">${icon('alert', 14)}失败</span>`;
+    else if (r.state === 'skipped') stt = `<span class="st">没跑</span>`;
+  }
+  const del = S.steps.length > 1 && !S.job ? `<button class="ib" data-act="del-step" title="删掉这一步">${icon('x', 14)}</button>` : '';
+  return `<span class="c-no">${i + 1}</span>${tag}${size}<span class="c-sp"></span>${stt}${del}`;
+}
+function trayHTML(st, i){
+  const max = S.status.limits.max_images, n = st.items.length, cols = Math.max(max, n);
+  const rej = rejectOf(st, i), tooMany = !!(rej && rej.code === 'too_many_images'), isMask = routeOf(i) === 'mask';
+  let t = '';
+  st.items.forEach((it, k) => {
+    const cls = [k >= max && tooMany ? 'over' : '', k === 0 ? 'lead' : '',
+                 S.view && S.view.kind === 'item' && S.view.id === st.id && S.view.idx === k ? 'viewing' : ''].join(' ');
+    const badge = k === 0 && isMask ? '底图' : String(k + 1);
+    if (it.kind === 'prev'){
+      const r = prevImage(i);
+      t += `<div class="tile prev ${r ? 'has' : ''} ${cls}" draggable="true" data-act="view-item" data-idx="${k}" ${r ? `style="background-image:url('${r.url}')"` : ''} title="上一步出的图">
+        <span class="t-badge">${badge}</span><span class="t-prev">${icon('link', r ? 11 : 16)}上一步</span>
+        <button class="t-x" data-act="rm-item" data-idx="${k}" title="不用上一步的图">${icon('x', 11)}</button></div>`;
+    } else {
+      t += `<div class="tile ${cls}" draggable="true" data-act="view-item" data-idx="${k}" style="background-image:url('${it.url}')" title="图 ${k + 1}">
+        <span class="t-badge">${badge}</span>
+        <button class="t-x" data-act="rm-item" data-idx="${k}" title="去掉这张">${icon('x', 11)}</button></div>`;
+    }
+  });
+  for (let k = n; k < max; k++)
+    t += k === n ? `<button class="tile empty first" data-act="pick" title="点击选图，也可以拖进来或粘贴">${icon('plus', 16)}<span>加图</span></button>`
+                 : `<button class="tile empty ghost" data-act="pick" tabindex="-1"></button>`;
+  return `<div class="tray-lab"><span>图片 · 拖动换顺序</span><span class="${tooMany ? 'over' : ''}">${n}/${max}</span></div>
+    <div class="tray ${n ? '' : 'is-empty'}" style="--cols:${cols}" data-drop="1">${t}</div>`;
+}
+function toolsHTML(st, i){
+  let h = '';
+  if (i > 0){
+    const on = st.items.some(it => it.kind === 'prev');
+    h += `<button class="chip ${on ? 'on' : ''}" data-act="toggle-prev">${icon('link', 14)}用上一步的图</button>`;
+  }
+  if (st.mask){
+    const rej = rejectOf(st, i), canEdit = fits(st.mask, leadImage(i)) && !painting(st);
+    const lab = painting(st) ? ['run', '涂蒙版中']
+      : waitsPrev(i) ? ['warn', '蒙版是在旧图上涂的']
+      : rej && /^mask_/.test(rej.code) ? ['bad', '蒙版要改']
+      : st.mask.dirty ? ['mute', '上传中…'] : ['', '已涂蒙版'];
+    h += `<div class="mask-ctl"><canvas class="m-thumb" width="60" height="60" data-mthumb="${st.id}" ${canEdit ? 'data-act="paint" title="看 / 改蒙版"' : ''}></canvas>
+      <span class="lab ${lab[0]}">${lab[1]}</span>${canEdit ? `<button class="chip" data-act="paint">改</button>` : ''}<button class="chip" data-act="drop-mask">去掉</button></div>`;
+  } else if (st.items.length){
+    /* 第 1 张是「上一步的图」但上一步还没出图：蒙版没处涂，先只跑到上一步 */
+    if (waitsPrev(i)){ if (!S.job) h += `<div class="mask-ctl"><button class="chip" data-act="run-upto" data-upto="${i - 1}" title="只跑到第 ${i} 步，出了图再在上面涂蒙版">${icon('play', 13)}先出第 ${i} 步的图</button></div>`; }
+    else h += `<div class="mask-ctl"><button class="chip" data-act="paint">${icon('brush', 14)}涂蒙版</button></div>`;
+  }
+  return h;
+}
+function rawHTML(text, open, src, toggle){
+  return `<div class="raw-wrap"><pre class="raw ${open ? 'open' : ''}"><span class="rt">${esc(text)}</span></pre>
+    <div class="raw-bar">${toggle ? `<button data-act="raw-toggle">${icon(open ? 'up' : 'down', 12)}${open ? '收起' : '展开原文'}</button>` : ''}<button data-act="copy-raw">${icon('copy', 12)}复制</button><span class="src">${src}</span></div></div>`;
+}
+function msgHTML(st, i){
+  const r = st.run, p = pl(i), rej = rejectOf(st, i);
+  if (r && r.state === 'failed')
+    return `<div class="msg">${icon('alert', 15)}<div class="txt">第 ${i + 1} 步失败${rawHTML(r.error.raw, st.rawOpen, 'ComfyUI 原文', true)}</div></div>`;
+  if (rej && !isSoft(rej)){
+    const f = FIX[rej.code];
+    const btn = !f ? '' : f[0] === 'repaint' && !leadImage(i)        // 新底图还没出：先出图，再重新涂
+      ? (S.job ? '' : ` <button class="linkbtn" data-act="run-upto" data-upto="${i - 1}">先出第 ${i} 步的图</button>`)
+      : ` <button class="linkbtn" data-act="${f[0]}">${f[1]}</button>`;
+    return `<div class="msg">${icon('alert', 15)}<div class="txt">${esc(rej.message)}${btn}</div></div>`;
+  }
+  if (p && p.unavailable && !GLOBAL_UNAV.includes(p.unavailable.code))
+    return `<div class="msg">${icon('alert', 15)}<div class="txt">${ROUTE[p.route]}现在用不了${p.route === 'mask' ? ` <button class="linkbtn" data-act="drop-mask">去掉蒙版</button>` : ''}${rawHTML(p.unavailable.message, true, '后端原文', false)}</div></div>`;
+  return '';
+}
+const showSize = st => !st.items.length || !!st.width || !!st.height;   // 宽高只给文生图：没放图（文生图或还没定）才出现；已经填了的留着显示，好让人看到再清掉
+function presetOn(st, w, h){
+  const d = S.status.limits.default_size;
+  return st.width || st.height ? +st.width === +w && +st.height === +h : +w === d.width && +h === d.height;   // 没填宽高 = 默认尺寸
+}
+function moreSum(st, i){
+  const seed = st.seed ? 'seed ' + st.seed : 'seed 随机', o = outOf(i);
+  return o && !rejectOf(st, i) ? `${seed} · ${o.width}×${o.height}` : seed;
+}
+function roundHint(i){ const p = pl(i); return p && p.requested && p.output ? `→ 实际 ${p.output.width}×${p.output.height}` : ''; }
+function moreHTML(st, i){
+  const d = S.status.limits.default_size, sz = showSize(st) ? '' : 'hidden';
+  return `<details class="more" data-more="${st.id}" ${st.moreOpen ? 'open' : ''}>
+    <summary>${icon('right', 12)}<b>更多</b><span class="more-sum">${moreSum(st, i)}</span></summary>
+    <div class="more-body">
+      <label class="f"><span>seed</span><input data-field="seed" placeholder="随机" inputmode="numeric" value="${esc(st.seed)}">
+        <button class="ib" data-act="seed-rand" title="随机一个">${icon('dice', 15)}</button><button class="ib" data-act="seed-clear" title="清空（每次随机）">${icon('x', 13)}</button></label>
+      <div class="f f-size" ${sz}><span>比例</span>${S.status.size_presets.map(z => `<button class="chip sm ${presetOn(st, z.width, z.height) ? 'on' : ''}" data-act="preset" data-w="${z.width}" data-h="${z.height}" title="${z.width}×${z.height}">${esc(z.label)}</button>`).join('')}</div>
+      <label class="f f-size" ${sz}><span>宽 × 高</span><input class="sz" data-field="width" placeholder="${d.width}" inputmode="numeric" value="${esc(st.width)}"><span class="x">×</span><input class="sz" data-field="height" placeholder="${d.height}" inputmode="numeric" value="${esc(st.height)}"><em class="round-hint">${roundHint(i)}</em></label>
+    </div></details>`;
+}
+
+/* ---------- 左栏底部：生成 ---------- */
+/* 「生成」跑哪几步：从第一个没完成的步骤开始；某一步的蒙版是在旧图上涂的，就只跑到它前一步，出了新图先让人看一眼 */
+function runRange(){
+  const k = S.steps.findIndex((st, i) => st.mask && waitsPrev(i));
+  return k > 0 ? { upto:k - 1, after:k } : { upto:S.steps.length - 1, after:null };
+}
+/* 能不能跑（只看 /api/status 和 /api/plan 的结论） */
+function gate(upto){
+  const todo = pendingIdx(upto), al = icon('alert', 14), nums = a => a.map(i => i + 1).join('、');
+  if (!todo.length) return { dis:true, why:'改哪一步，就从哪一步重跑' };
+  if (S.status.upgrading) return { dis:true, tone:'bad', why:`${al}ComfyUI 正在升级，升完再生成` };
+  if (!S.status.online) return { dis:true, tone:'bad', why:`${al}ComfyUI 没开，打开后再生成` };
+  if (todo.some(i => !pl(i))) return { dis:true };
+  const hard = todo.filter(i => { const r = rejectOf(S.steps[i], i); return r && !isSoft(r); });
+  if (hard.length) return { dis:true, tone:'bad', why:`${al}第 ${nums(hard)} 步要改一下，改好就能生成` };
+  const un = todo.filter(i => pl(i).unavailable);
+  if (un.length) return { dis:true, tone:'bad', why:`${al}第 ${nums(un)} 步要用的${ROUTE[pl(un[0]).route]}现在用不了` };
+  const soft = todo.filter(i => isSoft(rejectOf(S.steps[i], i)));
+  if (soft.length) return { dis:true, why:S.steps.length > 1 ? `第 ${nums(soft)} 步还没写指令` : '写一句指令就能生成' };
+  return { dis:false };
+}
+function genLabel(todo){
+  const tot = S.steps.length, a = todo[0] + 1, b = todo[todo.length - 1] + 1, r0 = S.steps[todo[0]].run;
+  const verb = r0 && r0.state === 'failed' ? '重试' : '生成';
+  if (todo.length === tot) return tot > 1 ? `${verb} · ${tot} 步` : verb;
+  if (todo.length === 1) return `${verb}第 ${a} 步`;
+  return b - a + 1 === todo.length ? `${verb}第 ${a}–${b} 步` : `从第 ${a} 步${verb} · ${todo.length} 步`;
+}
+function chainItem(st, i){
+  if (isDone(st)) return `<span class="r done">${icon('check', 12)}${ROUTE[st.run.image.route]}</span>`;
+  const r = rejectOf(st, i), rt = routeOf(i);
+  if (r) return isSoft(r) ? `<span class="r mute">第 ${i + 1} 步待写指令</span>` : `<span class="r bad">第 ${i + 1} 步要改</span>`;
+  return rt ? `<span class="r"><i class="rdot ${rt}"></i>${ROUTE[rt]}</span>` : `<span class="r mute">第 ${i + 1} 步</span>`;
+}
+const runningIdx = () => S.steps.findIndex(s => s.run && s.run.state === 'running');
+function renderDock(){
+  const chain = S.steps.map(chainItem).join(`<span class="arrow">→</span>`);
+  let label, dis = true, why = '', tone = '', cls = '', fill = 0;
+  if (S.job){
+    const ri = runningIdx(), pct = ri >= 0 ? Math.floor(S.steps[ri].run.progress * 100) : 0;
+    label = ri >= 0 ? `第 ${ri + 1}/${S.steps.length} 步 · ${pct}%` : '排队中'; cls = 'running'; fill = pct;   // 按钮文字和填充条都是当前这一步的进度
+  } else {
+    const { upto, after } = runRange(), todo = pendingIdx(upto), g = gate(upto);
+    label = todo.length ? genLabel(todo) : '已全部出图'; dis = g.dis; why = g.why || ''; tone = g.tone || '';
+    if (!dis && after !== null){ tone = 'warn'; why = `蒙版是在旧图上涂的，先出第 ${upto + 1} 步的新图，再看蒙版对不对`; }
+  }
+  $('#dock').innerHTML = `<div class="dock-sum">${S.steps.length} 步：${chain}</div>
+    <button class="gen ${cls}" data-act="gen" ${dis ? 'disabled' : ''}><span class="gen-fill" style="width:${fill}%"></span>
+      <span class="gl">${S.job ? '<i class="spin"></i>' : icon('sparkle', 18)}${label}</span>${S.job ? '' : '<kbd>Ctrl ↵</kbd>'}</button>
+    <div class="dock-why ${tone}">${why}</div>`;
+}
+
+/* ---------- 中间：画布 ---------- */
+function resolveView(){
+  const v = S.view;
+  if (!v) return { empty:true };
+  if (v.kind === 'history'){
+    const h = S.history.find(x => x.id === v.hid);
+    return h ? { label:`<b>历史</b> · ${when(h)} · 第 ${h.step} 步`, img:h, info:h } : { empty:true };
+  }
+  const i = stepIdx(v.id), st = S.steps[i];
+  if (!st) return { empty:true };
+  const res = isDone(st) ? st.run.image : null;
+  if (res && (v.kind === 'result' || (v.kind === 'step' && !S.job))) return { label:`<b>第 ${i + 1} 步结果</b>`, img:res, info:res, st, i };
+  const idx = v.kind === 'item' ? v.idx : 0, it = st.items[idx], p = pl(i), rt = routeOf(i);
+  if (it){
+    const lead = idx === 0, what = lead && rt === 'mask' ? '底图' : `图 ${idx + 1}`;
+    const base = { st, i, idx, what, out:lead && p ? p.output : null, mask:lead ? st.mask : null };
+    if (it.kind === 'prev'){
+      const r = prevImage(i), label = `<b>第 ${i + 1} 步</b> · ${what}（上一步的图）`;
+      if (r) return { ...base, label, img:r, canPaint:lead };
+      const po = pl(i - 1) && pl(i - 1).output, sz = po || S.status.limits.default_size;   // 占位框按上一步的预计出图尺寸
+      return { ...base, label, ph:{ width:sz.width, height:sz.height, known:!!po, t:`第 ${i} 步的图`, s:'还没出图' }, waitPrev:lead };
+    }
+    return { ...base, label:`<b>第 ${i + 1} 步</b> · ${what}`, img:it, canPaint:lead };
+  }
+  if (S.steps.length === 1 && !st.instruction.trim() && !st.width && !st.height) return { empty:true, st, i, label:`<b>第 ${i + 1} 步</b>` };
+  const o = p && p.output, sz = o || S.status.limits.default_size, rej = rejectOf(st, i);
+  return { label:`<b>第 ${i + 1} 步</b>${rt ? ' · ' + ROUTE[rt] : ''}`, st, i, t2i:true,
+           ph:{ width:sz.width, height:sz.height, known:!!o, t:o ? `${o.width} × ${o.height}` : rej && !isSoft(rej) ? '这一步要改一下' : '写一句指令',
+                s:o ? '点「生成」出图' : rej && !isSoft(rej) ? '看左边卡片上的说明' : '写好就能出图' } };
+}
+function renderStage(){
+  const V = resolveView(), stage = $('#stage');
+  if (S.mode === 'mask' && !V.canPaint) endPaint(false);
+  const paint = S.mode === 'mask', st = S.status, tot = S.steps.length;
+  /* 头部 */
+  const results = S.steps.map((s, k) => ({ s, k })).filter(o => isDone(o.s) || (o.s.run && o.s.run.state === 'failed'));
+  let acts = '';
+  if (results.length && !S.job){
+    acts += `<div class="seg">${results.map(o => {
+      const on = S.view.kind === 'result' && S.view.id === o.s.id ? 'on' : '';
+      return isDone(o.s)
+        ? `<button class="${on}" data-act="view-result" data-id="${o.s.id}"><img src="${o.s.run.image.url}" alt="">第 ${o.k + 1} 步</button>`
+        : `<button class="fail" data-act="goto-step" data-id="${o.s.id}"><span class="fx">${icon('alert', 11)}</span>第 ${o.k + 1} 步</button>`;
+    }).join('')}</div>`;
+  }
+  const upto = V.waitPrev && !V.mask && !S.job ? `<button class="chip" data-act="run-upto" data-upto="${V.i - 1}">${icon('play', 13)}先出第 ${V.i} 步的图</button>` : '';
+  if (V.canPaint && !paint && !S.job) acts += V.mask && !fits(V.mask, V.img)
+    ? `<button class="chip" data-act="repaint">${icon('brush', 14)}重新涂</button>`
+    : `<button class="chip" data-act="paint">${icon('brush', 14)}${V.mask ? '改蒙版' : '涂蒙版'}</button>`;
+  $('#sHead').innerHTML = `<div class="s-label">${V.label || '<b>画布</b>'}</div><div class="s-acts">${acts}</div>`;
+
+  /* 画布本体 */
+  let h = '';
+  if (V.empty){
+    h = `<div class="s-empty"><div class="big">${icon('image', 34)}</div><h2>写一句话，点生成</h2>
+      <p>想改现有的图？把图拖到这里、粘贴，或者 <button class="linkbtn" data-act="pick">选图</button></p></div>`;
+  } else {
+    const w = V.img ? V.img.width : V.ph.width, hh = V.img ? V.img.height : V.ph.height;
+    const run = S.job && V.st && V.st.run && V.st.run.state === 'running';
+    const cls = ['frame', V.img ? '' : 'ph', paint ? 'painting' : '', run ? 'shimmer' : '', run && V.img ? 'dim' : ''].join(' ');
+    h = `<div class="${cls}" id="frame" data-w="${w}" data-h="${hh}">
+      ${V.img ? `<img src="${V.img.url}" alt="" draggable="false">`
+              : `<div class="ph-in">${icon(V.t2i ? 'sparkle' : 'link', 22)}<b>${V.ph.t}</b><span>${V.ph.s}</span>${upto}</div>`}
+      <div class="cursor" id="cursor"></div></div>`;
+  }
+  if (paint){
+    const sz = S.brush.size, d = Math.max(3, Math.min(16, sz / 8));
+    h += `<div class="brushbar">
+      <button class="tb ${S.brush.erase ? '' : 'on'}" data-act="tool-brush">${icon('brush', 15)}画笔</button>
+      <button class="tb ${S.brush.erase ? 'on' : ''}" data-act="tool-erase">${icon('eraser', 15)}橡皮</button>
+      <span class="sep"></span>
+      <label class="size"><span class="pv"><i style="width:${d}px;height:${d}px"></i></span>
+        <input type="range" min="8" max="240" step="4" value="${sz}" data-field="brush"><span id="bsz">${sz}</span></label>
+      <span class="sep"></span>
+      <button class="tb" data-act="mask-clear">${icon('trash', 15)}清空</button>
+      <button class="tb done" data-act="mask-done">${icon('check', 15)}涂好了</button></div>`;
+  } else {
+    const failed = S.steps.findIndex(s => s.run && s.run.state === 'failed'), off = offRoutes(st);
+    if (!S.job && failed >= 0)
+      h += `<div class="banner bad">${icon('alert', 15)}第 ${failed + 1} 步失败<button class="chip" data-act="goto-step" data-id="${S.steps[failed].id}">看原文</button></div>`;
+    else if (st.upgrading)
+      h += `<div class="banner warn">${icon('refresh', 15)}ComfyUI 正在升级到 ${esc(st.upgrading.target)}<span class="mut">· 图和历史照常看</span></div>`;
+    else if (!st.online)
+      h += `<div class="banner bad">${icon('plug', 15)}ComfyUI 没开<span class="mut">· 打开后点「重新检测」，图和历史照常看</span><button class="chip" data-act="recheck">${icon('refresh', 13)}重新检测</button></div>`;
+    else if (off.length){
+      const ok = Object.keys(st.routes).filter(k => st.routes[k].available);
+      h += `<div class="banner warn">${icon('alert', 15)}${off.map(k => ROUTE[k]).join('、')}暂时用不了${ok.length ? `<span class="mut">· ${ok.map(k => ROUTE[k]).join('、')}照常</span>` : ''}</div>`;
+    }
+  }
+  const ri = runningIdx();
+  if (S.job && ri >= 0){
+    const r = S.steps[ri].run, pct = Math.floor(r.progress * 100);
+    h += `<div class="over-card" id="prog"><div class="prog-k"><i class="spin"></i>第 ${ri + 1} / ${tot} 步 · ${ROUTE[r.route]}</div>
+      <div class="prog-pct"><span id="pp">${pct}</span><small>%</small></div>
+      <div class="prog-bar"><i id="pb" style="width:${pct}%"></i></div>
+      <div class="prog-steps">${S.steps.map((s, k) => { const x = s.run && s.run.state, rt = routeOf(k);
+        const t = x === 'done' ? '已出图' : x === 'running' ? '在跑' : x === 'queued' ? '排队' : '这次不跑';
+        return `<span class="${x === 'done' ? 'ok' : x === 'running' ? 'on' : ''}">${x === 'done' ? icon('check', 12) : `<i class="rdot ${rt || ''}"></i>`}第 ${k + 1} 步 ${t}</span>`; }).join('')}</div></div>`;
+  }
+  h += `<div class="toast" id="toast"></div>`;
+  stage.innerHTML = h;
+  const showMask = !V.empty && fits(V.mask, V.img || V.ph);
+  if (showMask){ const f = $('#frame'); V.mask.canvas.className = 'mk'; f.insertBefore(V.mask.canvas, $('#cursor')); }
+  fitFrame();
+
+  /* 底部信息行 */
+  const sz = o => `${o.width}×${o.height}`;
+  let ft = '';
+  if (V.info && !S.job){
+    const x = V.info;
+    ft = `<span class="tag ${x.route}">${ROUTE[x.route]}</span><span class="meta">${sz(x)}</span><span class="sepdot"></span><span class="meta">seed ${x.seed}</span>
+      <span class="f-sp"></span><a class="btn" href="${x.url}" download>${icon('download', 15)}下载</a>
+      <button class="btn pri" data-act="continue">接着改${icon('arrow', 15)}</button>`;
+  } else if (paint){
+    ft = `<span class="hint"><i class="sw"></i>涂到的地方会重画，其它保持不变</span><span class="f-sp"></span><span class="meta k">底图</span><span class="meta">${sz(V.img)}</span>`;
+  } else if (V.waitPrev){
+    ft = `<span class="meta k">第 ${V.i} 步的图</span>${V.ph.known ? `<span class="meta k">预计</span><span class="meta">${sz(V.ph)}</span>` : ''}
+${V.mask ? '' : `<span class="meta k">· 想涂蒙版，先出第 ${V.i} 步的图</span>`}`;
+  } else if (showMask){
+    ft = `<span class="hint"><i class="sw"></i>粉色区域会重画</span><span class="f-sp"></span>${V.out ? `<span class="meta k">出图</span><span class="meta">${sz(V.out)}</span>` : ''}`;
+  } else if (V.t2i){
+    const p = pl(V.i);
+    if (p && p.output) ft = `<span class="meta k">出图尺寸</span><span class="meta">${sz(p.output)}</span>${p.requested ? `<span class="warnt">（填的 ${sz(p.requested)}，已取整到 ${st.limits.size_multiple} 的倍数）</span>` : ''}`;
+  } else if (V.img){
+    ft = `<span class="meta k">${V.what}</span><span class="meta">${sz(V.img)}</span>${V.out ? `<span class="meta k">· 出图</span><span class="meta">${sz(V.out)}</span>` : ''}`;
+  } else if (V.empty){
+    ft = `<span class="meta k">支持点击、拖入、粘贴图片，最多 ${st.limits.max_images} 张</span>`;
+  }
+  $('#sFoot').innerHTML = ft;
+}
+/* 图放在画布中间；顶上有横幅 / 画笔条时让开，不压住图 */
+function fitFrame(){
+  const f = $('#frame'), st = $('#stage'); if (!f) return;
+  const pad = parseFloat(cssVar('--stage-pad')) || 24, bar = st.querySelector('.banner, .brushbar');
+  const top = bar ? bar.offsetTop + bar.offsetHeight + pad / 2 : pad;
+  const W = st.clientWidth - pad * 2, H = st.clientHeight - top - pad;
+  const w = +f.dataset.w, h = +f.dataset.h, k = Math.min(W / w, H / h);
+  f.style.width = Math.floor(w * k) + 'px'; f.style.height = Math.floor(h * k) + 'px'; f.style.top = (top + H / 2) + 'px';
+}
+function updateProgress(){
+  const ri = runningIdx(); if (ri < 0) return;
+  const st = S.steps[ri], pct = Math.floor(st.run.progress * 100);
+  const pp = $('#pp'), pb = $('#pb'); if (pp) pp.textContent = pct; if (pb) pb.style.width = pct + '%';
+  const el = $(`.card[data-step="${st.id}"] .c-head`); if (el) el.innerHTML = headHTML(st, ri);
+  renderDock();
+}
+
+/* ---------- 右栏：历史（GET /api/history） ---------- */
+function renderFilm(){
+  $('#filmCount').textContent = S.history.length + ' 张';
+  if (!S.history.length){ $('#film').innerHTML = `<div class="film-empty">出过的图会在这里</div>`; return; }
+  let h = '', g = '';
+  S.history.forEach(x => {
+    const w = when(x); if (w !== g){ g = w; h += `<div class="film-g">${g}</div>`; }
+    const fresh = S.fresh.has(x.id);
+    h += `<button class="fi ${isShowing(x) ? 'sel' : ''}" data-act="view-hist" data-hid="${x.id}" title="${esc(x.instruction || '')}">${fresh ? '<span class="new">新</span>' : ''}<img src="${x.url}" alt="" loading="lazy">
+      <span class="fm"><i class="rdot ${x.route}"></i>${fresh ? '第 ' + x.step + ' 步' : ROUTE[x.route]}</span></button>`;
+  });
+  $('#film').innerHTML = h;
+}
+function isShowing(x){
+  const v = S.view; if (!v) return false;
+  if (v.kind === 'history') return v.hid === x.id;
+  if (v.kind === 'result' || (v.kind === 'step' && !S.job)){ const st = stepById(v.id); return isDone(st) && st.run.image.id === x.id; }
+  return false;
+}
+
+/* ============================================================
+   蒙版：每步一张离屏画板，存「涂过的地方 = 不透明的蒙版色」。
+   id = 最近一次上传（POST /api/images）拿到的图片 id；dirty = 上传后又涂过
+   ============================================================ */
+const imgCache = {};
+function getImg(src, cb){
+  let im = imgCache[src];
+  if (!im){ im = imgCache[src] = new Image(); im.src = src; }
+  if (im.complete && im.naturalWidth) cb && cb(im); else im.addEventListener('load', () => cb && cb(im), { once:true });
+  return im;
+}
+function newMask(w, h){ const c = document.createElement('canvas'); c.width = w; c.height = h; return { canvas:c, w, h, id:null, dirty:false }; }
+/* 画板 → 黑白 PNG（白 = 重画），交给 POST /api/images */
+function maskPng(m){
+  const c = document.createElement('canvas'); c.width = m.w; c.height = m.h;
+  const x = c.getContext('2d');
+  x.drawImage(m.canvas, 0, 0);
+  x.globalCompositeOperation = 'source-in'; x.fillStyle = cssVar('--mask-on'); x.fillRect(0, 0, m.w, m.h);
+  x.globalCompositeOperation = 'destination-over'; x.fillStyle = cssVar('--mask-off'); x.fillRect(0, 0, m.w, m.h);
+  return new Promise(ok => c.toBlob(ok, 'image/png'));
+}
+function drawMaskThumbs(){
+  document.querySelectorAll('canvas[data-mthumb]').forEach(c => {
+    const i = stepIdx(c.dataset.mthumb), st = S.steps[i]; if (!st || !st.mask) return;
+    const x = c.getContext('2d'), W = c.width, H = c.height, m = st.mask, b = leadImage(i);
+    x.clearRect(0, 0, W, H); x.fillStyle = cssVar('--well'); x.fillRect(0, 0, W, H);
+    const k = Math.min(W / m.w, H / m.h), dw = m.w * k, dh = m.h * k, ox = (W - dw) / 2, oy = (H - dh) / 2;
+    const paint = () => { x.globalAlpha = .75; x.drawImage(m.canvas, ox, oy, dw, dh); x.globalAlpha = 1; };
+    if (fits(m, b)) getImg(b.url, im => { x.drawImage(im, ox, oy, dw, dh); paint(); });
+    else { x.fillStyle = cssVar('--card-3'); x.fillRect(ox, oy, dw, dh); paint(); }
+  });
+}
+let drawing = null;
+function maskPoint(e){
+  const st = stepById(S.view.id), c = st.mask.canvas, r = c.getBoundingClientRect();
+  return { x:(e.clientX - r.left) / r.width * c.width, y:(e.clientY - r.top) / r.height * c.height, st, c };
+}
+function strokeTo(p, from){
+  const x = p.c.getContext('2d');
+  x.globalCompositeOperation = S.brush.erase ? 'destination-out' : 'source-over';
+  x.strokeStyle = cssVar('--mask'); x.lineWidth = S.brush.size; x.lineCap = x.lineJoin = 'round';
+  x.beginPath(); x.moveTo(from.x, from.y); x.lineTo(p.x, p.y); x.stroke();
+  x.globalCompositeOperation = 'source-over';
+  p.st.mask.dirty = true;
+}
+function moveCursor(e){
+  const cur = $('#cursor'), f = $('#frame'); if (!cur || !f || S.mode !== 'mask') return;
+  const r = f.getBoundingClientRect(), d = S.brush.size * r.width / (+f.dataset.w);
+  cur.style.display = 'block'; cur.style.width = cur.style.height = d + 'px';
+  cur.style.left = (e.clientX - r.left) + 'px'; cur.style.top = (e.clientY - r.top) + 'px';
+}
+/* 开始涂：蒙版只能涂在已经有的图上（没有图时入口不会出现） */
+function startPaint(st){
+  if (!st) return;
+  const b = leadImage(stepIdx(st.id)); if (!b) return;
+  if (!fits(st.mask, b)) st.mask = newMask(b.width, b.height);   // 新蒙版（或尺寸对不上时换一张空白的）先不上传、不规划，点「涂好了」再说
+  select(st.id, { kind:'item', id:st.id, idx:0 }); S.mode = 'mask'; S.brush.erase = false;
+}
+/* 结束涂：explicit = 点了「涂好了」→ 导出上传、重新规划（空的由 /api/plan 回 mask_empty）。
+   其它方式离开（切到别处、Esc）：一笔没涂的新蒙版直接丢掉，涂过的照样上传 */
+async function endPaint(explicit){
+  const st = stepById(S.view.id), m = st && st.mask; S.mode = 'view';
+  if (!m) return;
+  if (!m.id && !m.dirty && !explicit){ st.mask = null; return; }
+  if (m.id && !m.dirty) return;
+  const r = await mockUpload(await maskPng(m));
+  if (r.status !== 201){ toast(r.body.message); return; }
+  if (st.mask === m){ m.id = r.body.id; m.dirty = false; }
+  await replan(); renderAll();
+}
+
+/* ============================================================
+   交互
+   ============================================================ */
+function select(id, view){
+  const v = view || { kind:'step', id };
+  if (S.mode === 'mask' && !(v.kind === 'item' && v.idx === 0 && v.id === S.view.id)) endPaint(false);
+  S.sel = id; S.view = v;
+}
+/* 改了某一步的输入：这一步的结果作废；后面「用上一步的图」的步骤跟着作废（它们的蒙版留着）。返回是否有变化 */
+function touch(st){
+  if (!st || S.job) return false;
+  let changed = false;
+  for (let j = stepIdx(st.id); j < S.steps.length; j++){
+    const s = S.steps[j];
+    if (j > stepIdx(st.id) && !(changed && s.items.some(it => it.kind === 'prev'))) break;
+    if (s.run){ s.run = null; changed = true; }
+  }
+  return changed;
+}
+async function addFiles(sid, files, at){
+  if (S.job) return;
+  const st = stepById(sid) || S.steps[0];
+  const list = [...files].filter(f => f.type.startsWith('image/')); if (!list.length) return;
+  const res = await Promise.all(list.map(f => mockUpload(f)));
+  const bad = res.find(r => r.status !== 201); if (bad) toast(bad.body.message);
+  const items = res.filter(r => r.status === 201).map(r => ({ kind:'img', ...r.body }));
+  if (!items.length || !stepById(st.id)) return;
+  touch(st);
+  if (at === undefined) st.items.push(...items); else st.items.splice(at, 0, ...items);
+  select(st.id); update();
+}
+function continueFrom(x){
+  /* 「接着改」：开新一轮，把这张图带进第 1 步当图 1；之前的结果都在历史里 */
+  clearTimeout(timer);
+  const st = step({ items:[{ kind:'img', id:x.id, url:x.url, width:x.width, height:x.height }] });
+  S.mode = 'view'; S.steps = [st]; S.job = null; select(st.id);
+  update().then(() => { toast('已把这张图带进新的一步'); const ta = $(`.card[data-step="${st.id}"] textarea`); if (ta) ta.focus(); });
+}
+/* 生成：POST /api/generate 拿 job_id，再轮询 GET /api/jobs/{id}。upto / after 给「只跑到前面某一步」用 */
+async function startRun(upto, after){
+  if (S.job) return;
+  if (upto === undefined) ({ upto, after } = runRange());
+  if (S.mode === 'mask') await endPaint(true);      // 涂到一半直接点生成：先当「涂好了」
+  await replan();
+  const g = gate(upto);
+  if (g.dis){ renderAll(); if (g.why) toast(g.why.replace(/<[^>]+>/g, '')); return; }
+  S.job = { segs:segments(upto), si:0, after:after === undefined ? null : after, id:null, shown:false };
+  S.fresh = new Set();
+  sendSeg();
+}
+async function sendSeg(){
+  const J = S.job, seg = J.segs[J.si];
+  const r = await mockGenerate(bodyFor(seg));
+  if (S.job !== J) return;
+  if (r.status !== 202){
+    S.job = null;
+    if (r.status === 422) r.body.plan.steps.forEach(p => { PLAN[p.step - 1] = p; });
+    else { S.status = (await mockStatus()).body; await replan(); }
+    renderAll(); toast(r.body.message); return;
+  }
+  J.id = r.body.job_id; J.shown = false;
+  poll();
+}
+async function poll(){
+  const J = S.job; if (!J || !J.id) return;
+  const job = (await mockJob(J.id)).body; if (S.job !== J) return;
+  let fresh = null;
+  job.steps.forEach(js => { const st = S.steps[js.step - 1]; if (!st) return; if (js.state === 'done' && !isDone(st)) fresh = js.image.id; st.run = js; });
+  if (fresh){ S.history = (await mockHistory()).body.items; S.fresh.add(fresh); if (S.job !== J) return; }
+  if (job.state === 'queued' || job.state === 'running'){
+    const ri = runningIdx();
+    if (!J.shown || fresh || (ri >= 0 && S.steps[ri].id !== S.sel)){
+      J.shown = true; if (ri >= 0) select(S.steps[ri].id);
+      await replan(); if (S.job !== J) return; renderAll();
+    } else updateProgress();
+    timer = setTimeout(poll, 180); return;
+  }
+  if (job.state === 'done' && J.si + 1 < J.segs.length){ J.si++; await replan(); sendSeg(); return; }
+  S.job = null; await replan();
+  if (job.state === 'failed'){
+    /* 某步失败：停下，前面出的图保留；选中失败的那步，画布先看前面最后一张图 */
+    const f = job.steps.find(x => x.state === 'failed'), fi = f.step - 1;
+    const good = S.steps.map((s, k) => k).filter(k => k < fi && isDone(S.steps[k])).pop();
+    select(S.steps[fi].id, good !== undefined ? { kind:'result', id:S.steps[good].id } : undefined);
+    renderAll(); toast(`第 ${f.step} 步失败`); return;
+  }
+  const nx = J.after !== null && S.steps[J.after];
+  if (nx && nx.mask){         // 蒙版是在旧图上涂的：切过去，旧蒙版叠在新图上，先看一眼；尺寸变了就得重新涂（看规划）
+    const p = pl(J.after), mis = !!(p && p.reject && p.reject.code === 'mask_size_mismatch');
+    select(nx.id, { kind:'item', id:nx.id, idx:0 }); renderAll(); toast(mis ? '新图尺寸变了，蒙版要重新涂' : '新图出来了，蒙版还是之前涂的，看一眼再接着跑'); return;
+  }
+  if (nx){ startPaint(nx); renderAll(); toast(`第 ${J.after} 步出图了，涂要重画的地方`); return; }   // 「先出第 n 步的图」：切到下一步，直接能涂
+  const last = S.steps[job.steps[job.steps.length - 1].step - 1];
+  select(last.id, { kind:'result', id:last.id }); renderAll(); toast('出图了');
+}
+async function recheck(){
+  S.status = (await mockStatus()).body; await replan(); renderAll();
+  toast(S.status.online ? 'ComfyUI 连上了' : '还是连不上 ComfyUI');
+}
+async function copyText(t){
+  try { await navigator.clipboard.writeText(t); return true; } catch (_){}
+  const ta = document.createElement('textarea'); ta.value = t; ta.className = 'sr'; document.body.appendChild(ta); ta.select();
+  let ok = false; try { ok = document.execCommand('copy'); } catch (_){}
+  ta.remove(); return ok;
+}
+let toastT;
+function toast(t){ const el = $('#toast'); if (!el) return; el.textContent = t; el.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('show'), 2200); }
+function autoGrow(t){ t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight + 2, 150) + 'px'; }
+
+document.addEventListener('click', e => {
+  if (S.popOpen && !e.target.closest('#pop, #status')){ S.popOpen = false; renderTop(); }
+  const a = e.target.closest('[data-act]');
+  const card = e.target.closest('.card'), sid = card && card.dataset.step, st = sid && stepById(sid);
+  if (!a){
+    if (card && !e.target.closest('textarea,input,summary,.more-body') && sid !== S.sel){ select(sid); renderAll(); }
+    return;
+  }
+  const act = a.dataset.act, idx = a.dataset.idx !== undefined ? +a.dataset.idx : null;
+  if (['rm-item', 'toggle-prev', 'drop-mask', 'repaint', 'seed-rand', 'seed-clear', 'clear-size', 'preset'].includes(act)) touch(st);
+  switch (act){
+    case 'ver': S.popOpen = !S.popOpen; renderTop(); return;
+    case 'preset': st.width = a.dataset.w; st.height = a.dataset.h; break;
+    case 'pick': S.pickFor = sid || S.sel; $('#pick').click(); return;
+    case 'rm-item': e.stopPropagation(); st.items.splice(idx, 1); if (S.view.kind === 'item') select(sid); break;
+    case 'view-item': select(sid, { kind:'item', id:sid, idx }); break;
+    case 'toggle-prev': { const k = st.items.findIndex(it => it.kind === 'prev'); if (k >= 0) st.items.splice(k, 1); else st.items.unshift(PREV()); break; }
+    case 'paint': startPaint(st || stepById(S.view.id)); break;
+    case 'drop-mask': { const s2 = st || stepById(S.view.id); if (painting(s2)) S.mode = 'view'; s2.mask = null; break; }
+    case 'repaint': { const s2 = st || stepById(S.view.id); touch(s2); if (painting(s2)) S.mode = 'view'; s2.mask = null; startPaint(s2); break; }   // 在现在的底图上换一张空白蒙版
+    case 'clear-size': st.width = st.height = ''; break;
+    case 'seed-rand': st.seed = String(Math.floor(Math.random() * 1e6)); break;
+    case 'seed-clear': st.seed = ''; break;
+    case 'del-step': {
+      const i = stepIdx(sid); if (painting(st)) S.mode = 'view'; S.steps.splice(i, 1);
+      if (S.steps[0]) S.steps[0].items = S.steps[0].items.filter(it => it.kind !== 'prev');
+      select(stepById(S.sel) ? S.sel : S.steps[Math.max(0, i - 1)].id); break;
+    }
+    case 'add-step': { const ns = step({ items:[PREV()] }); S.steps.push(ns); select(ns.id);
+      update().then(() => { const ta = $(`.card[data-step="${ns.id}"] textarea`); if (ta){ ta.focus(); ta.scrollIntoView({ block:'nearest' }); } }); return; }
+    case 'raw-toggle': st.rawOpen = !st.rawOpen; break;
+    case 'copy-raw': {
+      const t = card && card.querySelector('.raw'); if (!t) return;
+      copyText(t.textContent).then(ok => {
+        if (ok) return toast('原文已复制');
+        if (st && !st.rawOpen && t.closest('.raw-wrap').querySelector('[data-act="raw-toggle"]')){ st.rawOpen = true; renderAll(); }
+        toast('复制失败，请手动选中');
+      });
+      return;
+    }
+    case 'view-result': { const id = a.dataset.id || sid; select(id, { kind:'result', id }); break; }
+    case 'view-hist': select(S.sel, { kind:'history', hid:a.dataset.hid }); break;
+    case 'goto-step': { const id = a.dataset.id; select(id); renderAll(); const c = $(`.card[data-step="${id}"]`); if (c) c.scrollIntoView({ block:'nearest', behavior:'smooth' }); return; }
+    case 'continue': { const x = resolveView().info; if (x) continueFrom(x); return; }
+    case 'gen': startRun(); return;
+    case 'run-upto': { const n = +a.dataset.upto; startRun(n, n + 1); return; }
+    case 'recheck': recheck(); return;
+    case 'tool-brush': S.brush.erase = false; break;
+    case 'tool-erase': S.brush.erase = true; break;
+    case 'mask-clear': { const s2 = stepById(S.view.id); if (s2 && s2.mask){ s2.mask.canvas.getContext('2d').clearRect(0, 0, s2.mask.w, s2.mask.h); s2.mask.dirty = true; } touch(s2); break; }
+    case 'mask-done': endPaint(true); break;
+    default: return;
+  }
+  update();
+});
+document.addEventListener('input', e => {
+  const t = e.target, f = t.dataset.field; if (!f) return;
+  if (f === 'brush'){ S.brush.size = +t.value; $('#bsz').textContent = t.value; const i = t.closest('.size').querySelector('.pv i'), d = Math.max(3, Math.min(16, S.brush.size / 8)) + 'px'; i.style.width = i.style.height = d; return; }
+  const st = stepById(t.closest('.card').dataset.step);
+  if (f === 'instruction'){ st.instruction = t.value; autoGrow(t); }
+  else { st[f] = t.value.replace(/\D/g, ''); if (t.value !== st[f]) t.value = st[f]; }
+  const changed = touch(st);
+  replan().then(() => {
+    if (!changed) return refreshDyn();
+    const c = [t.selectionStart, t.selectionEnd]; renderAll();
+    const nt = $(`.card[data-step="${st.id}"] [data-field="${f}"]`);
+    if (nt){ nt.focus(); try { nt.setSelectionRange(c[0], c[1]); } catch (_){} }
+  });
+});
+document.addEventListener('toggle', e => { const d = e.target; if (d.dataset && d.dataset.more){ const st = stepById(d.dataset.more); if (st) st.moreOpen = d.open; } }, true);
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter'){ const b = $('.gen'); if (b && !b.disabled) startRun(); }
+  if (e.key === 'Escape' && S.popOpen){ S.popOpen = false; renderTop(); }
+  else if (e.key === 'Escape' && S.mode === 'mask'){ endPaint(false); renderAll(); }
+});
+$('#pick').addEventListener('change', e => { addFiles(S.pickFor, e.target.files); e.target.value = ''; });
+document.addEventListener('paste', e => {
+  const files = [...(e.clipboardData ? e.clipboardData.files : [])];
+  if (files.length){ e.preventDefault(); addFiles(S.sel, files); }
+});
+/* 拖动：图块换顺序 / 拖文件进托盘或画布 */
+let dragSrc = null;
+document.addEventListener('dragstart', e => {
+  const t = e.target.closest && e.target.closest('.tile[draggable]'); if (!t) return;
+  dragSrc = { sid:t.closest('.card').dataset.step, idx:+t.dataset.idx }; t.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', 'tile');
+});
+document.addEventListener('dragend', () => { dragSrc = null; document.querySelectorAll('.dragging,.drag-over').forEach(x => x.classList.remove('dragging', 'drag-over')); });
+document.addEventListener('dragover', e => {
+  const t = e.target.closest && (e.target.closest('.tile') || e.target.closest('.tray') || e.target.closest('#stage'));
+  if (!t) return; e.preventDefault();
+  document.querySelectorAll('.drag-over').forEach(x => x !== t && x.classList.remove('drag-over')); t.classList.add('drag-over');
+});
+document.addEventListener('drop', e => {
+  const tile = e.target.closest && e.target.closest('.tile'), tray = e.target.closest && e.target.closest('.tray'), stg = e.target.closest && e.target.closest('#stage');
+  if (!tile && !tray && !stg) return; e.preventDefault();
+  document.querySelectorAll('.drag-over').forEach(x => x.classList.remove('drag-over'));
+  const card = e.target.closest('.card'), sid = card ? card.dataset.step : S.sel;
+  if (dragSrc && card){
+    if (S.job){ dragSrc = null; return; }
+    const from = stepById(dragSrc.sid), to = stepById(sid); touch(from); touch(to);
+    const it = from.items.splice(dragSrc.idx, 1)[0];
+    let at = tile && tile.dataset.idx !== undefined ? +tile.dataset.idx : to.items.length;
+    if (at > to.items.length) at = to.items.length;
+    to.items.splice(at, 0, it); dragSrc = null; select(sid); update(); return;
+  }
+  if (e.dataTransfer.files.length) addFiles(sid, e.dataTransfer.files, tile && tile.dataset.idx !== undefined ? +tile.dataset.idx : undefined);
+});
+/* 画笔：每一笔抬起后立刻重画整页（卡片上的蒙版状态跟着变） */
+document.addEventListener('pointerdown', e => {
+  if (S.mode !== 'mask' || !e.target.closest('#frame')) return;
+  e.preventDefault(); const p = maskPoint(e); drawing = p; strokeTo(p, p); e.target.setPointerCapture && e.target.setPointerCapture(e.pointerId);
+});
+document.addEventListener('pointermove', e => { moveCursor(e); if (!drawing) return; const p = maskPoint(e); strokeTo(p, drawing); drawing = p; });
+document.addEventListener('pointerup', () => { if (drawing){ const st = drawing.st; drawing = null; touch(st); update(); } });
+
+new ResizeObserver(fitFrame).observe($('#stage'));
+window.addEventListener('hashchange', () => load(location.hash.slice(1)));
+
+/* ============================================================
+   图标（内联 SVG）
+   ============================================================ */
+const ICONS = {
+  plus:'M12 5v14M5 12h14', x:'M6 6l12 12M18 6L6 18', check:'M5 12.5l4.5 4.5L19 7',
+  link:'M10 13.5a4 4 0 0 0 5.7.3l2.8-2.8a4 4 0 0 0-5.7-5.7l-1.2 1.2M14 10.5a4 4 0 0 0-5.7-.3l-2.8 2.8a4 4 0 0 0 5.7 5.7l1.2-1.2',
+  brush:'M14.5 4.5l5 5L10 19l-5.5.5L5 14z M12.5 6.5l5 5',
+  eraser:'M4 15.5l9-9 6.5 6.5-7 7H8.5z M9 10.5l6.5 6.5 M10 20h10',
+  trash:'M4 7h16M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13',
+  download:'M12 4v11M7 10.5l5 5 5-5M5 20h14',
+  arrow:'M5 12h13M13 6.5l5.5 5.5-5.5 5.5',
+  sparkle:'M12 3.5l1.9 5.6 5.6 1.9-5.6 1.9L12 18.5l-1.9-5.6L4.5 11l5.6-1.9z M18.5 16.5l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z',
+  dice:'M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z M8.5 8.5h.01M15.5 15.5h.01M12 12h.01M15.5 8.5h.01M8.5 15.5h.01',
+  right:'M9 6l6 6-6 6', down:'M6 9l6 6 6-6', up:'M6 15l6-6 6 6', dash:'M7 12h10',
+  alert:'M12 3.5l9.5 16.5h-19z M12 10v4.5 M12 17.3v.2',
+  copy:'M8.5 8.5h11v11h-11z M15.5 8.5V4.5h-11v11h4',
+  image:'M3.5 5h17v14h-17z M3.5 16l5-5 4 4 2.5-2.5 5.5 5.5 M15.5 8.5h.01',
+  plug:'M9 3v5M15 3v5M6.5 8h11v3.5a5.5 5.5 0 0 1-11 0z M12 17v4',
+  refresh:'M19.5 12a7.5 7.5 0 1 1-2.2-5.3 M19.5 4.5v4h-4',
+  play:'M8 5.5v13l10.5-6.5z',
+};
+function icon(n, s = 16){
+  return `<svg class="ic" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${ICONS[n] || ''}"/></svg>`;
+}
+
+/* ---------- 启动 ---------- */
+$('#logo').innerHTML = icon('sparkle', 16);
+$('#demo').insertAdjacentHTML('beforeend', DEMO.map(([k, t]) => `<button data-state="${k}">${t}</button>`).join(''));
+$('#demo').addEventListener('click', e => {
+  const b = e.target.closest('button[data-state]'); if (!b) return;
+  if (location.hash === '#' + b.dataset.state) load(b.dataset.state); else location.hash = b.dataset.state;
+});
+load(location.hash.slice(1) || 'blank');
+</script>
+</body>
+</html>

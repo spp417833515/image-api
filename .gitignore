@@ -1,0 +1,15 @@
+.pp/tmp/
+
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# ppwiki run state (ppwiki data is tracked: .pp/wiki and decisions.db)
+.pp/gate/
+.pp/trash/
+.pp/state.json
+.pp/mcp.json
+# Generated images and runtime state (upgrading flag, version operation log)
+/data/

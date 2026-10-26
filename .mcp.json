@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "ppwiki": {
+      "command": "/home/spp/桌面/MYAI/libs/ppwiki/mcp_start.sh",
+      "args": [
+        "--project",
+        "/home/spp/桌面/image-api"
+      ]
+    }
+  }
+}

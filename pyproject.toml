@@ -1,0 +1,48 @@
+[project]
+name = "image-api"
+version = "0.1.0"
+description = "生图入口：页面 + HTTP 接口 + 命令行（使用核心包 imagegen）"
+requires-python = ">=3.14"
+dependencies = [
+    "imagegen",
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+    "python-multipart>=0.0.9",
+]
+
+[project.scripts]
+image-api = "image_api.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.11,<0.12"]
+build-backend = "uv_build"
+
+[tool.uv.workspace]
+members = ["packages/imagegen"]
+
+[tool.uv.sources]
+imagegen = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.7",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = [
+    "live: 需要真 ComfyUI（127.0.0.1:8188），不 mock",
+    "live_versions: 真升级 / 回滚 ComfyUI 本体（只在 gate.py check --formal 里跑）",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py314"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM"]
+# The formatter enforces line length for code; long prose in comments/docstrings is not checked line by line
+ignore = ["E501"]
