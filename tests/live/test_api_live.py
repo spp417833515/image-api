@@ -21,6 +21,7 @@ import uvicorn
 from imagegen.factory import create_service
 from imagegen.logic.comfy.config import ComfyConfig
 from PIL import Image, ImageChops, ImageDraw, ImageStat
+from thresholds import MAX_OUTSIDE_DRIFT, MIN_INSIDE_CHANGE  # sibling module in tests/live
 
 from image_api.web.app import create_app
 
@@ -32,7 +33,6 @@ CONFIG = ComfyConfig()
 RED_FOX = (
     "A red fox sitting in fresh snow at golden hour, soft side light, shallow depth of field, 85mm lens. No lettering."
 )
-MAX_OUTSIDE_DRIFT = 3.0  # mask route, mean |difference| per pixel (0–255) outside the white area, on a photo
 JOB_TIMEOUT_S = 900.0
 
 
@@ -178,7 +178,7 @@ def test_image_with_white_mask_is_mask_and_keeps_the_rest(api) -> None:
     inside = ImageStat.Stat(diff, mask=white).mean[0]
     print(f"mask route via HTTP: mean |diff| inside={inside:.2f} outside={outside:.2f} (limit {MAX_OUTSIDE_DRIFT})")
     assert outside <= MAX_OUTSIDE_DRIFT
-    assert inside >= 10.0  # the white area really changed
+    assert inside >= MIN_INSIDE_CHANGE
 
 
 # ---------------------------------------------------------------- several steps

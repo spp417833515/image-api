@@ -2,10 +2,21 @@
 
 from __future__ import annotations
 
+import socket
+import threading
+import time
+from collections.abc import Iterator
+from contextlib import contextmanager
+
+import httpx
 import pytest
+import uvicorn
 from biz_fakes import FakeBackend, encode, make_service
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from imagegen.biz.models import ErrorBody, ErrorCode
 from PIL import Image
+from pydantic import ValidationError
 
 from image_api.web.app import create_app
 
@@ -17,6 +28,7 @@ def assert_contract_error(response, status: int, code: str) -> dict:
     body = response.json()
     assert "detail" not in body
     assert body["code"] == code and isinstance(body["message"], str) and body["message"]
+    assert body["code"] in set(ErrorCode)
     assert set(body) <= {"code", "message", "raw", "plan"}
     return body
 
@@ -53,6 +65,10 @@ def test_request_validation_errors_use_the_contract_body(client) -> None:
         client.post("/api/plan", json={"steps": [{"instruction": "x", "colour": 1}]}), 422, "invalid_request"
     )
     assert_contract_error(client.post("/api/images"), 422, "invalid_request")
+    broken_multipart = {"content-type": "multipart/form-data; boundary=xyz"}
+    assert_contract_error(
+        client.post("/api/images", content=b"garbage", headers=broken_multipart), 400, "invalid_request"
+    )
     assert_contract_error(client.get("/api/history", params={"limit": "many"}), 422, "invalid_request")
     assert_contract_error(client.get("/api/history", params={"limit": 0}), 422, "invalid_request")
     assert_contract_error(client.get("/api/history", params={"before": "../etc"}), 422, "invalid_request")
@@ -75,6 +91,51 @@ class BrokenStatusBackend(FakeBackend):
 
 def test_an_unexpected_failure_is_a_500_contract_body(tmp_path) -> None:
     app = create_app(make_service(BrokenStatusBackend(), tmp_path))
-    with TestClient(app, raise_server_exceptions=False) as client:
+    with TestClient(app) as client:  # would re-raise here if the exception escaped the app after the 500
         body = assert_contract_error(client.get("/api/status"), 500, "internal_error")
         assert "unreadable" in body["raw"]
+
+
+@contextmanager
+def served(app: FastAPI) -> Iterator[str]:
+    """app on a real local socket (uvicorn in a thread); yields its base URL."""
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+    server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port, log_level="critical"))
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+    deadline = time.monotonic() + 10
+    while not server.started:
+        assert thread.is_alive() and time.monotonic() < deadline, "uvicorn did not start"
+        time.sleep(0.02)
+    try:
+        yield f"http://127.0.0.1:{port}"
+    finally:
+        server.should_exit = True
+        thread.join(timeout=10)
+
+
+def test_a_500_leaves_the_keep_alive_connection_usable(tmp_path) -> None:
+    with served(create_app(make_service(BrokenStatusBackend(), tmp_path))) as url:
+        for _ in range(5):
+            with httpx.Client(base_url=url) as client:  # keep-alive: both requests share one connection
+                assert_contract_error(client.get("/api/status"), 500, "internal_error")
+                assert client.get("/api/history").status_code == 200
+
+
+def test_error_bodies_take_only_the_contracts_codes() -> None:
+    assert {c.value for c in ErrorCode} == {
+        "rejected",
+        "bad_image",
+        "invalid_request",
+        "not_found",
+        "method_not_allowed",
+        "internal_error",
+        "comfy_down",
+        "missing_file",
+        "missing_node",
+        "upgrading",
+    }
+    with pytest.raises(ValidationError):
+        ErrorBody(code="detail", message="x")

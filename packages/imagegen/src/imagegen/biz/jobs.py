@@ -2,7 +2,8 @@
 
 Steps run in order; "$prev" is the previous step's output. The first failure stops the job: that step is failed with
 the backend's original text, later steps are skipped, earlier images stay. Each finished image is stored (and so is in
-the history) before its step is reported done. Jobs live in memory: a restart forgets them (their images remain).
+the history) before its step is reported done. A step does not start while a ComfyUI upgrade is running. Jobs live in
+memory: a restart forgets them (their images remain).
 """
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ import asyncio
 import logging
 import secrets
 import time
+import traceback
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
@@ -21,6 +23,7 @@ from ..logic.types import Route, Size, StepInput
 from .models import Job, JobImage, JobState, JobStep, StepError, StepState
 from .planner import binarized_mask
 from .routing import PREV, Limits
+from .version_state import VersionState
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +59,10 @@ class _JobRun:
     finished: asyncio.Event = field(default_factory=asyncio.Event)
 
 
+class _NotRun(Exception):
+    """The step was not sent to the backend; the message says why."""
+
+
 class JobNotFound(KeyError):
     def __init__(self, job_id: str) -> None:
         super().__init__(job_id)
@@ -64,12 +71,19 @@ class JobNotFound(KeyError):
 
 class JobRunner:
     def __init__(
-        self, backend: ImageBackend, store: ImageStore, limits: Limits, on_unavailable: Callable[[], None]
+        self,
+        backend: ImageBackend,
+        store: ImageStore,
+        limits: Limits,
+        version_state: VersionState,
+        on_unavailable: Callable[[], None],
     ) -> None:
-        """on_unavailable: called when the backend turns out to be unavailable mid-job (to refresh the status)."""
+        """version_state: read before every step, so no step starts during an upgrade.
+        on_unavailable: called when the backend turns out to be unavailable mid-job (to refresh the status)."""
         self._backend = backend
         self._store = store
         self._limits = limits
+        self._version_state = version_state
         self._on_unavailable = on_unavailable
         self._jobs: dict[str, _JobRun] = {}
         self._queue: asyncio.Queue[_JobRun] = asyncio.Queue()
@@ -136,7 +150,13 @@ class JobRunner:
     async def _work(self) -> None:
         while True:
             job = await self._queue.get()
-            await self._run(job)
+            try:
+                await self._run(job)
+            except Exception:
+                # _run turns every step's failure into that step's error; reaching here is a bug in the runner itself.
+                # The job ends failed with the traceback, and the worker goes on with the next job.
+                logger.exception("job %s: the job runner failed", job.id)
+                _abort(job, f"任务运行器内部错误，这个任务停下了：\n{traceback.format_exc()}")
 
     async def _run(self, job: _JobRun) -> None:
         job.state = JobState.RUNNING
@@ -147,6 +167,8 @@ class JobRunner:
                 continue
             run.state, run.progress = StepState.RUNNING, 0.0
             try:
+                if (upgrading := self._version_state.upgrading()) is not None:
+                    raise _NotRun(f"ComfyUI 正在升级（目标 {upgrading.target}），这一步没有运行")
                 previous = await self._run_step(job, run.plan, previous, _progress_setter(run))
             except Exception as exc:
                 run.state, run.progress, run.error = StepState.FAILED, None, self._raw_error(job, run.plan, exc)
@@ -200,6 +222,8 @@ class JobRunner:
     def _raw_error(self, job: _JobRun, step: RunStep, exc: Exception) -> str:
         """The text a failed step shows: the backend's original words, unedited, plus any notes attached to them."""
         match exc:
+            case _NotRun():
+                raw = str(exc)
             case StepFailed():
                 raw = exc.raw
             case BackendUnavailable():

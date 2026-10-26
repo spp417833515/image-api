@@ -1,13 +1,10 @@
-"""The version state files (single owner: imagegen.biz.version_state) and reading the installed ComfyUI version
-(imagegen.logic.comfy.version) from a real local git repository."""
+"""The version state files (single owner: imagegen.biz.version_state). Reading the installed version from git is
+tested in tests/unit/logic/test_comfy_version.py."""
 
 from __future__ import annotations
 
 import json
-import os
-import subprocess
 from datetime import UTC, datetime, timedelta, timezone
-from pathlib import Path
 
 import pytest
 from imagegen.biz.version_state import (
@@ -21,7 +18,7 @@ from imagegen.biz.version_state import (
     VersionState,
     VersionStateError,
 )
-from imagegen.logic.comfy.version import InstalledVersion, VersionReadError, read_installed_version
+from imagegen.logic.comfy.version import InstalledVersion
 from pydantic import ValidationError
 
 AT = datetime(2026, 10, 26, 20, 0, tzinfo=timezone(timedelta(hours=8)))
@@ -94,31 +91,9 @@ def test_a_corrupt_state_file_fails_loudly_naming_it(tmp_path) -> None:
         state.operations()
 
 
-def git(root: Path, *args: str) -> str:
-    env = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
-    done = subprocess.run(["git", "-C", str(root), *args], capture_output=True, text=True, env={**os.environ, **env})
-    assert done.returncode == 0, done.stderr
-    return done.stdout.strip()
-
-
-def test_installed_version_from_git(tmp_path) -> None:
-    git(tmp_path, "init", "-q")
-    git(tmp_path, "commit", "-q", "--allow-empty", "-m", "one")
-    commit = git(tmp_path, "rev-parse", "--short", "HEAD")
-    assert read_installed_version(tmp_path) == InstalledVersion(None, commit)  # no tags at all
-    git(tmp_path, "tag", "v0.1.0")
-    assert read_installed_version(tmp_path) == InstalledVersion("v0.1.0", commit)
-    git(tmp_path, "commit", "-q", "--allow-empty", "-m", "two")
-    later = git(tmp_path, "rev-parse", "--short", "HEAD")
-    assert read_installed_version(tmp_path) == InstalledVersion(None, later)  # tags exist, none on HEAD
-    assert Version.model_validate(read_installed_version(tmp_path), from_attributes=True) == Version(
-        tag=None, commit=later
-    )
-
-
-def test_not_a_git_checkout_fails_loudly(tmp_path) -> None:
-    with pytest.raises(VersionReadError, match="rev-parse"):
-        read_installed_version(tmp_path / "missing")
+def test_a_version_read_from_git_converts_to_the_state_model() -> None:
+    assert Version.model_validate(InstalledVersion("v0.42.5", "483dae4"), from_attributes=True) == NEW
+    assert Version.model_validate(InstalledVersion(None, "0b05cd8"), from_attributes=True) == OLD
 
 
 def test_aware_times_serialise_as_iso_with_zone() -> None:

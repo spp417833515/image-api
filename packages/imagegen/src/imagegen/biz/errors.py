@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from .models import PlanResponse, UnavailableReason
+from .models import ErrorCode, PlanResponse, UnavailableReason
 
 
 class ServiceError(Exception):
-    code: str = "error"
+    code: ErrorCode
 
     def __init__(self, message: str, raw: str | None = None) -> None:
         super().__init__(message)
@@ -17,23 +17,23 @@ class ServiceError(Exception):
 class BadImage(ServiceError):
     """An upload that is not a PNG / JPEG / WEBP image."""
 
-    code = "bad_image"
+    code = ErrorCode.BAD_IMAGE
 
 
 class InvalidRequest(ServiceError):
     """A parameter outside what the service accepts (e.g. a malformed history cursor)."""
 
-    code = "invalid_request"
+    code = ErrorCode.INVALID_REQUEST
 
 
 class NotFound(ServiceError):
-    code = "not_found"
+    code = ErrorCode.NOT_FOUND
 
 
 class Rejected(ServiceError):
     """generate: at least one step is rejected; plan says which and why."""
 
-    code = "rejected"
+    code = ErrorCode.REJECTED
 
     def __init__(self, plan: PlanResponse) -> None:
         rejected = [s for s in plan.steps if s.reject is not None]
@@ -49,4 +49,4 @@ class ServiceUnavailable(ServiceError):
 
     def __init__(self, reason: UnavailableReason, message: str, raw: str) -> None:
         super().__init__(message, raw)
-        self.code = reason.value
+        self.code = ErrorCode(reason.value)

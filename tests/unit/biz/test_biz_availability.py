@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
 
 import pytest
-from biz_fakes import VERSION, FakeBackend, make_service
+from biz_fakes import VERSION, FakeBackend, FakeVersion, make_service
+from imagegen.biz.availability import Availability
 from imagegen.biz.errors import Rejected, ServiceUnavailable
 from imagegen.biz.models import GenerateRequest, StepRequest, UnavailableReason
+from imagegen.biz.routing import Limits
 from imagegen.biz.version_state import (
     CheckItem,
     LastCheck,
@@ -16,7 +19,9 @@ from imagegen.biz.version_state import (
     OperationResult,
     Upgrading,
     Version,
+    VersionState,
 )
+from imagegen.logic.backend import BackendUnavailable, Unavailable, UnavailableCode
 from imagegen.logic.types import Route
 
 ONE_STEP = GenerateRequest(steps=[StepRequest(instruction="画一只狐狸")])
@@ -117,3 +122,35 @@ async def test_status_shows_the_last_check_and_operation(service) -> None:
     wire = status.model_dump(mode="json")
     assert wire["last_operation"]["from"] == {"tag": None, "commit": "0b05cd8"}
     assert wire["last_check"]["at"] == "2026-10-26T12:00:00Z"
+
+
+async def test_planning_does_not_wait_on_a_backend_that_hangs_when_the_cache_is_stale(service, backend) -> None:
+    await service.status()
+    backend.hold = asyncio.Event()
+    backend.failures[0] = BackendUnavailable(Unavailable(UnavailableCode.BACKEND_DOWN, "down", "reset"))
+    accepted = await service.generate(ONE_STEP)
+    await asyncio.wait_for(backend.started.wait(), 5)
+    backend.status_hold = asyncio.Event()  # from now on the backend does not answer status requests
+    backend.hold.set()
+    await asyncio.wait_for(service.wait(accepted.job_id), 5)  # the job found the backend gone: the cache is stale
+    calls = backend.status_calls  # including the refresh that is now hanging
+    for _ in range(20):
+        plan = await asyncio.wait_for(service.plan(ONE_STEP), 0.5)
+        assert plan.ok  # the last known availability, while the refresh is still out
+    assert backend.status_calls == calls  # planning joined the refresh already out; it asked nothing new
+    backend.status_hold.set()
+    assert (await asyncio.wait_for(service.status(), 5)).online
+
+
+async def test_a_stale_cache_is_returned_at_once_and_refreshed_once_in_the_background(tmp_path) -> None:
+    backend = FakeBackend()
+    limits = Limits.for_backend(backend.caps)
+    availability = Availability(backend, FakeVersion, VersionState(tmp_path), limits, max_age_s=0.0)
+    first = await availability.refresh()
+    backend.status_hold = asyncio.Event()
+    for _ in range(10):
+        assert await asyncio.wait_for(availability.cached(), 0.5) is first  # stale (max age 0), returned at once
+    await asyncio.sleep(0)  # let the background refresh start
+    assert backend.status_calls == 2  # the priming call, plus one background refresh for all ten
+    backend.status_hold.set()
+    assert await asyncio.wait_for(availability.refresh(), 5) is not first

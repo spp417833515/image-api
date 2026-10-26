@@ -5,9 +5,11 @@ from __future__ import annotations
 import pytest
 from biz_fakes import FakeBackend, make_service, mask_png, png
 from imagegen.biz.models import GenerateRequest, ImageSize, RejectCode, StepRequest
-from imagegen.biz.routing import MAX_SAFE_SEED, Limits
+from imagegen.biz.routing import Limits
 from imagegen.logic.backend import BackendCapabilities
 from imagegen.logic.types import Route
+
+CONTRACT_MAX_SEED = 2**53 - 1  # contract.md: seed 须在 0 到 2^53−1 之间 (the page's JS numbers are exact up to here)
 
 
 @pytest.fixture
@@ -95,8 +97,8 @@ async def test_grey_mask_pixels_count_by_the_half_luminance_threshold(service) -
 
 async def test_seed_range(service) -> None:
     assert (await plan_one(service, seed=0)).reject is None
-    assert (await plan_one(service, seed=MAX_SAFE_SEED)).reject is None
-    for seed in (-1, MAX_SAFE_SEED + 1, 2**64):
+    assert (await plan_one(service, seed=CONTRACT_MAX_SEED)).reject is None
+    for seed in (-1, CONTRACT_MAX_SEED + 1, 2**63, 2**64):
         assert (await plan_one(service, seed=seed)).reject.code is RejectCode.SEED_OUT_OF_RANGE, seed
 
 
@@ -112,4 +114,4 @@ def test_product_limits_that_do_not_fit_the_backend_fail_at_startup(tmp_path) ->
     with pytest.raises(ValueError, match="max_images is 0"):
         Limits.for_backend(BackendCapabilities(frozenset(Route), max_images=0, size_multiple=32, max_seed=1))
     limits = Limits.for_backend(BackendCapabilities(frozenset(Route), max_images=16, size_multiple=16, max_seed=2**64))
-    assert (limits.max_images, limits.size_multiple, limits.max_seed) == (4, 16, MAX_SAFE_SEED)
+    assert (limits.max_images, limits.size_multiple, limits.max_seed) == (4, 16, CONTRACT_MAX_SEED)

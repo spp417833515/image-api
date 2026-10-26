@@ -47,6 +47,22 @@ class UnavailableReason(StrEnum):
     UPGRADING = "upgrading"
 
 
+class ErrorCode(StrEnum):
+    """The code of every error body the service sends: its single source (web and biz import it)."""
+
+    REJECTED = "rejected"  # 422 with the plan
+    BAD_IMAGE = "bad_image"  # 422: an upload that is not a PNG / JPEG / WEBP image
+    INVALID_REQUEST = "invalid_request"  # 422: the request does not fit the contract
+    NOT_FOUND = "not_found"  # 404: unknown path, image or job
+    METHOD_NOT_ALLOWED = "method_not_allowed"  # 405
+    INTERNAL_ERROR = "internal_error"  # 500: a bug; raw has what happened
+    # 503: a route the request needs cannot run now
+    COMFY_DOWN = UnavailableReason.COMFY_DOWN.value
+    MISSING_FILE = UnavailableReason.MISSING_FILE.value
+    MISSING_NODE = UnavailableReason.MISSING_NODE.value
+    UPGRADING = UnavailableReason.UPGRADING.value
+
+
 # ---------------------------------------------------------------- request (POST /api/plan and /api/generate)
 class StepRequest(BaseModel):
     model_config = _MODEL
@@ -261,13 +277,13 @@ class HistoryPage(BaseModel):
 class ErrorBody(BaseModel):
     model_config = _MODEL
 
-    code: str
-    message: str
+    code: ErrorCode
+    message: str = Field(min_length=1)
     raw: str | None = None
 
 
 class RejectedBody(ErrorBody):
-    code: Literal["rejected"] = "rejected"
+    code: Literal[ErrorCode.REJECTED] = ErrorCode.REJECTED
     plan: PlanResponse
 
 

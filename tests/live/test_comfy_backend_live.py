@@ -15,6 +15,7 @@ from imagegen.logic.comfy.client import ComfyClient
 from imagegen.logic.comfy.config import ComfyConfig
 from imagegen.logic.types import Route, Size, StepInput
 from PIL import Image, ImageChops, ImageDraw, ImageStat
+from thresholds import MAX_OUTSIDE_DRIFT, MIN_INSIDE_CHANGE  # sibling module in tests/live
 
 pytestmark = pytest.mark.live
 
@@ -23,10 +24,6 @@ CONFIG = ComfyConfig()
 RED_FOX = (
     "A red fox sitting in fresh snow at golden hour, soft side light, shallow depth of field, 85mm lens. No lettering."
 )
-# Mask route acceptance, mean |difference| per pixel on 0–255. Outside the white area: the user's threshold
-# (ppwiki decision 5; measured up to 4.25 on line art with the base image in the encoder). Inside: it really changed.
-MAX_OUTSIDE_DRIFT = 5.0
-MIN_INSIDE_CHANGE = 10.0
 
 
 def imageapi_files() -> set[Path]:

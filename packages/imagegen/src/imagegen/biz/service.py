@@ -55,7 +55,7 @@ class ImageGenService:
         self.version_state = VersionState.in_data_dir(data_dir)
         self._availability = Availability(backend, read_version, self.version_state, self.limits)
         self._planner = Planner(self.store, self.limits)
-        self._jobs = JobRunner(backend, self.store, self.limits, self._availability.refresh_soon)
+        self._jobs = JobRunner(backend, self.store, self.limits, self.version_state, self._availability.refresh_soon)
 
     # ---- lifecycle: the job worker runs between start() and stop()
     async def start(self) -> None:

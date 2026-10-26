@@ -25,6 +25,7 @@ class FakeBackend:
     """Every route available and every run succeeding, unless a test says otherwise.
 
     failures[i]: the exception the i-th run (0-based) raises. hold: while set, runs wait on it after reporting progress.
+    status_hold: while set, status() waits on it (a backend that does not answer).
     """
 
     name = "fake"
@@ -43,6 +44,7 @@ class FakeBackend:
         self.runs: list[StepInput] = []
         self.failures: dict[int, BaseException] = {}
         self.hold: asyncio.Event | None = None
+        self.status_hold: asyncio.Event | None = None
         self.started = asyncio.Event()
 
     def capabilities(self) -> BackendCapabilities:
@@ -50,6 +52,8 @@ class FakeBackend:
 
     async def status(self) -> BackendStatus:
         self.status_calls += 1
+        if self.status_hold is not None:
+            await self.status_hold.wait()
         if not self.online:
             down = Unavailable(UnavailableCode.BACKEND_DOWN, "后端没开（fake）", "connection refused (fake)")
             return BackendStatus(self.name, "fake:0", False, None, dict.fromkeys(self.problems, down))

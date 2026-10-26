@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import UTC, datetime
 
 import pytest
 from biz_fakes import FakeBackend, decoded, make_service, mask_png, png
 from imagegen.biz.errors import NotFound
+from imagegen.biz.jobs import JobRunner, RunStep
 from imagegen.biz.models import GenerateRequest, JobState, StepRequest, StepState
-from imagegen.biz.routing import MAX_SAFE_SEED
+from imagegen.biz.routing import PREV, Limits
+from imagegen.biz.version_state import Upgrading, VersionState
 from imagegen.logic.backend import (
     BackendUnavailable,
     CleanupFailed,
@@ -17,6 +20,7 @@ from imagegen.logic.backend import (
     UnavailableCode,
     UnexpectedResponse,
 )
+from imagegen.logic.storage import ImageStore
 from imagegen.logic.types import Route, Size, StepOutput
 
 COMFY_TEXT = "Prompt outputs failed validation\nKSampler:\n- Value 0 smaller than min of 1: steps"
@@ -116,7 +120,7 @@ async def test_unset_seeds_are_drawn_and_reported(service, backend) -> None:
     job = await run(service, StepRequest(instruction="画"), StepRequest(instruction="改", images=["$prev"]))
     seeds = [s.image.seed for s in job.steps]
     assert [r.seed for r in backend.runs] == seeds
-    assert all(0 <= seed <= MAX_SAFE_SEED for seed in seeds)
+    assert all(0 <= seed <= 2**53 - 1 for seed in seeds)  # the contract's seed range
 
 
 async def test_drawn_seeds_stay_within_the_backends_range(tmp_path) -> None:
@@ -199,3 +203,75 @@ async def test_unknown_job_and_unstarted_service(tmp_path) -> None:
         service.job("job_missing")
     with pytest.raises(RuntimeError, match="not started"):
         await service.generate(GenerateRequest(steps=[StepRequest(instruction="画")]))
+
+
+async def test_images_reach_the_backend_in_request_order(service, backend) -> None:
+    a, b, c = [(await service.upload_image(png(320 + 32 * n, 256))).id for n in range(3)]
+    job = await run(
+        service,
+        StepRequest(instruction="画", width=512, height=256),
+        StepRequest(instruction="改", images=[b, "$prev", c, a]),
+    )
+    assert job.state is JobState.DONE
+    order = (b, job.steps[0].image.id, c, a)
+    assert backend.runs[1].images == tuple(service.image_path(image_id) for image_id in order)
+    assert backend.runs[1].size == Size(352, 256)  # the first image (b) sets the size
+
+
+UPGRADE = Upgrading(target="v0.42.5", since=datetime(2026, 10, 26, 12, 0, tzinfo=UTC))
+NOT_RUN = "ComfyUI 正在升级（目标 v0.42.5），这一步没有运行"
+
+
+async def test_no_step_starts_while_an_upgrade_runs(service, backend) -> None:
+    backend.hold = asyncio.Event()
+    running = await service.generate(
+        GenerateRequest(steps=[StepRequest(instruction="画"), StepRequest(instruction="改", images=["$prev"])])
+    )
+    await asyncio.wait_for(backend.started.wait(), 5)
+    queued = await service.generate(
+        GenerateRequest(first_step=4, steps=[StepRequest(instruction="画"), StepRequest(instruction="再画")])
+    )
+    service.version_state.set_upgrading(UPGRADE)  # the upgrade begins while step 1 of the first job runs
+    backend.hold.set()
+
+    first = await asyncio.wait_for(service.wait(running.job_id), 5)
+    assert [s.state for s in first.steps] == [StepState.DONE, StepState.FAILED]  # step 1 had started; step 2 had not
+    assert first.steps[1].error.raw == NOT_RUN
+    second = await asyncio.wait_for(service.wait(queued.job_id), 5)
+    assert second.state is JobState.FAILED
+    assert [(s.step, s.state) for s in second.steps] == [(4, StepState.FAILED), (5, StepState.SKIPPED)]
+    assert second.steps[0].error.raw == NOT_RUN
+    assert len(backend.runs) == 1  # nothing was sent to the backend after the upgrade began
+
+    service.version_state.clear_upgrading()
+    assert (await run(service, StepRequest(instruction="画"))).state is JobState.DONE
+
+
+async def test_a_runner_bug_fails_its_job_and_the_worker_goes_on(tmp_path) -> None:
+    backend = FakeBackend()
+
+    def broken_status_refresh() -> None:
+        raise RuntimeError("status refresh exploded")
+
+    store = ImageStore(tmp_path / "images")
+    runner = JobRunner(
+        backend, store, Limits.for_backend(backend.caps), VersionState(tmp_path / "comfy"), broken_status_refresh
+    )
+    await runner.start()
+    try:
+        # The step's failure is handled, but handling it calls a collaborator that raises: a bug outside the step.
+        backend.failures[0] = BackendUnavailable(Unavailable(UnavailableCode.BACKEND_DOWN, "down", "refused"))
+        two_steps = [
+            RunStep(1, Route.T2I, "画", (), None, 1, Size(256, 256)),
+            RunStep(2, Route.REF, "改", (PREV,), None, 2, None),
+        ]
+        broken = runner.submit(1, two_steps)
+        after = runner.submit(1, [RunStep(1, Route.T2I, "画", (), None, 3, Size(256, 256))])
+        failed = await asyncio.wait_for(runner.wait(broken), 5)
+        assert failed.state is JobState.FAILED
+        assert [s.state for s in failed.steps] == [StepState.FAILED, StepState.SKIPPED]
+        raw = failed.steps[0].error.raw
+        assert "Traceback" in raw and "RuntimeError: status refresh exploded" in raw
+        assert (await asyncio.wait_for(runner.wait(after), 5)).state is JobState.DONE  # the worker is still alive
+    finally:
+        await runner.stop()
