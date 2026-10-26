@@ -1,0 +1,147 @@
+[
+ {
+  "type": "execution_start",
+  "data": {
+   "prompt_id": "4393d068-8236-4be8-95e3-82030aaaf2ac",
+   "timestamp": 1793033483539
+  }
+ },
+ {
+  "type": "execution_cached",
+  "data": {
+   "nodes": [
+    "unet",
+    "clip",
+    "vae"
+   ],
+   "prompt_id": "4393d068-8236-4be8-95e3-82030aaaf2ac",
+   "timestamp": 1793033483540
+  }
+ },
+ {
+  "type": "progress_state",
+  "data": {
+   "prompt_id": "4393d068-8236-4be8-95e3-82030aaaf2ac",
+   "nodes": {
+    "latent": {
+     "value": 0.0,
+     "max": 1.0,
+     "state": "running",
+     "node_id": "latent",
+     "prompt_id": "4393d068-8236-4be8-95e3-82030aaaf2ac",
+     "display_node_id": "latent",
+     "parent_node_id": null,
+     "real_node_id": "latent"
+    }
+   }
+  }
+ },
+ {
+  "type": "executing",
+  "data": {
+   "node": "latent",
+   "display_node": "latent",
+   "prompt_id": "4393d068-8236-4be8-95e3-82030aaaf2ac"
+  }
+ },
+ {
+  "type": "progress_state",
+  "data": {
+   "prompt_id": "4393d068-8236-4be8-95e3-82030aaaf2ac",
+   "nodes": {
+    "latent": {
+     "value": 1.0,
+     "max": 1.0,
+     "state": "finished",
+     "node_id": "latent",
+     "prompt_id": "4393d068-8236-4be8-95e3-82030aaaf2ac",
+     "display_node_id": "latent",
+     "parent_node_id": null,
+     "real_node_id": "latent"
+    }
+   }
+  }
+ },
+ {
+  "type": "progress_state",
+  "data": {
+   "prompt_id": "4393d068-8236-4be8-95e3-82030aaaf2ac",
+   "nodes": {
+    "latent": {
+     "value": 1.0,
+     "max": 1.0,
+     "state": "finished",
+     "node_id": "latent",
+     "prompt_id": "4393d068-8236-4be8-95e3-82030aaaf2ac",
+     "display_node_id": "latent",
+     "parent_node_id": null,
+     "real_node_id": "latent"
+    },
+    "load_1": {
+     "value": 0.0,
+     "max": 1.0,
+     "state": "running",
+     "node_id": "load_1",
+     "prompt_id": "4393d068-8236-4be8-95e3-82030aaaf2ac",
+     "display_node_id": "load_1",
+     "parent_node_id": null,
+     "real_node_id": "load_1"
+    }
+   }
+  }
+ },
+ {
+  "type": "executing",
+  "data": {
+   "node": "load_1",
+   "display_node": "load_1",
+   "prompt_id": "4393d068-8236-4be8-95e3-82030aaaf2ac"
+  }
+ },
+ {
+  "type": "execution_error",
+  "data": {
+   "prompt_id": "4393d068-8236-4be8-95e3-82030aaaf2ac",
+   "node_id": "load_1",
+   "node_type": "LoadImage",
+   "executed": [
+    "latent"
+   ],
+   "exception_message": "cannot identify image file '/home/spp/ComfyUI/input/imageapi_cap26272de9_image1.png'\n",
+   "exception_type": "PIL.UnidentifiedImageError",
+   "traceback": [
+    "  File \"/home/spp/ComfyUI/execution.py\", line 548, in execute\n    output_data, output_ui, has_subgraph, has_pending_tasks = await get_output_data(prompt_id, unique_id, obj, input_data_all, execution_block_cb=execution_block_cb, pre_execute_cb=pre_execute_cb, v3_data=v3_data)\n                                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n",
+    "  File \"/home/spp/ComfyUI/execution.py\", line 353, in get_output_data\n    return_values = await _async_map_node_over_list(prompt_id, unique_id, obj, input_data_all, obj.FUNCTION, allow_interrupt=True, execution_block_cb=execution_block_cb, pre_execute_cb=pre_execute_cb, v3_data=v3_data)\n                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n",
+    "  File \"/home/spp/ComfyUI/execution.py\", line 327, in _async_map_node_over_list\n    await process_inputs(input_dict, i)\n",
+    "  File \"/home/spp/ComfyUI/execution.py\", line 315, in process_inputs\n    result = f(**inputs)\n",
+    "  File \"/home/spp/ComfyUI/nodes.py\", line 1775, in load_image\n    img = node_helpers.pillow(Image.open, image_path)\n",
+    "  File \"/home/spp/ComfyUI/node_helpers.py\", line 62, in pillow\n    x = fn(arg)\n",
+    "  File \"/home/spp/ComfyUI/.venv/lib/python3.14/site-packages/PIL/Image.py\", line 3715, in open\n    raise UnidentifiedImageError(msg)\n"
+   ],
+   "current_inputs": {
+    "image": [
+     "imageapi_cap26272de9_image1.png"
+    ]
+   },
+   "current_outputs": [
+    "latent",
+    "clip",
+    "vae",
+    "unet",
+    "decode",
+    "sample",
+    "save",
+    "load_1",
+    "encode"
+   ],
+   "timestamp": 1793033483977
+  }
+ },
+ {
+  "type": "executing",
+  "data": {
+   "node": null,
+   "prompt_id": "4393d068-8236-4be8-95e3-82030aaaf2ac"
+  }
+ }
+]

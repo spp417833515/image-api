@@ -1,0 +1,10 @@
+{
+  "名称": "mem-20261026163440369324",
+  "description": "image-api 执行进度与索引（2026-10-26）",
+  "body": "澄清已锁定：clarify/生图入口 image-api：自动路由·多步·版本管理·可复用核心（用户 2026-10-26 选「锁定，开工」）。\n骨架已提交 d6340e5：uv workspace、tests/test_layering.py（分层+循环+≤400行，变异验证过）、scripts/gate.py（check/--formal/floors）、design/ui-a-studio.html（三轮审查通过的界面验收标准）。\n任务说明在 .pp/tmp/briefs/：rules-coding.md、contract.md（接口契约 v1，已写入澄清 notes §7）、line1-page.md、line2-logic.md、line4-versions.md；line3 待写（等 line2 接口）。\n当前：线 1 页面 ∥ 线 2 逻辑层 并行执行中；之后各自独立审查 → 线 3 业务组装 → 线 4 版本管理 → 全量验收（gate --formal）。\n关键事实：蒙版用 ZImageFunControlnet(inpaint_image)；uv 源是阿里云无 cu130 torch，升级必须钉住 torch*；ComfyUI 本地无 tag；本机时区 America/Los_Angeles；端口 9333 有用户的旧 headless Chrome 勿碰。",
+  "tags": [
+    "image-api",
+    "进度"
+  ],
+  "创建日期": "2026-10-26T16:34:40.369557+00:00"
+}
