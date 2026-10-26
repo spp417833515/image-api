@@ -11,6 +11,7 @@ from imagegen.logic.comfy.config import ComfyConfig
 from imagegen.logic.comfy.files import CleanupError, remove_run_files
 from imagegen.logic.comfy.prepare import prepare
 from imagegen.logic.types import Route, Size, StepInput
+from offline import UNREACHABLE_URL
 from PIL import Image
 
 
@@ -117,7 +118,7 @@ def test_output_size_must_fit_the_multiple() -> None:
 
 
 def test_capabilities() -> None:
-    caps = ComfyBackend().capabilities()
+    caps = ComfyBackend(ComfyConfig(base_url=UNREACHABLE_URL)).capabilities()
     assert caps.routes == frozenset(Route)
     assert caps.max_images >= 4 and caps.size_multiple == 32 and caps.max_seed == 2**64 - 1
 
@@ -167,7 +168,7 @@ def test_cleanup_refuses_a_token_that_could_match_other_files(tmp_path) -> None:
 
 
 async def test_malformed_steps_fail_before_contacting_comfyui() -> None:
-    backend = ComfyBackend(ComfyConfig(base_url="http://192.0.2.1:9", http_timeout_s=0.01))  # never contacted
+    backend = ComfyBackend(ComfyConfig(base_url=UNREACHABLE_URL))  # never contacted
     with pytest.raises(ValueError, match="route ref takes 1–16 images"):
         await backend.run(step(Route.REF))
     with pytest.raises(ValueError, match="seed must be in"):

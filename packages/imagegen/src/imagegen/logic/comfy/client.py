@@ -39,9 +39,10 @@ class ComfyHTTPError(Exception):
 class ComfyClient:
     """One session with ComfyUI. Use as `async with ComfyClient(config) as client:`."""
 
-    def __init__(self, config: ComfyConfig) -> None:
+    def __init__(self, config: ComfyConfig, *, transport: httpx.AsyncBaseTransport | None = None) -> None:
+        """transport replaces the network for HTTP calls (e.g. httpx.MockTransport); the websocket is unaffected."""
         self._config = config
-        self._http = httpx.AsyncClient(base_url=config.base_url, timeout=config.http_timeout_s)
+        self._http = httpx.AsyncClient(base_url=config.base_url, timeout=config.http_timeout_s, transport=transport)
 
     async def __aenter__(self) -> Self:
         return self

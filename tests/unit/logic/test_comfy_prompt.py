@@ -17,9 +17,10 @@ from imagegen.logic.backend import StepFailed
 from imagegen.logic.comfy.client import ComfyHTTPError, ComfyUnreachable
 from imagegen.logic.comfy.config import ComfyConfig
 from imagegen.logic.comfy.prompt import run_prompt
+from offline import UNREACHABLE_URL
 
 FIXTURES = Path(__file__).parent / "fixtures"
-CONFIG = ComfyConfig(run_timeout_s=5.0, stop_timeout_s=2.0)
+CONFIG = ComfyConfig(base_url=UNREACHABLE_URL, run_timeout_s=5.0, stop_timeout_s=2.0)
 
 
 def captured(name: str, prompt_id: str) -> list[dict[str, Any]]:
@@ -131,7 +132,7 @@ async def test_cancelling_the_task_stops_the_prompt_first() -> None:
 async def test_timeout_stops_the_prompt_and_fails_the_step() -> None:
     fake = FakeComfy(forever_after_progress(asyncio.Event()))
     with pytest.raises(StepFailed, match="did not finish prompt .* within 0s; it was cancelled"):
-        await go(fake, ComfyConfig(run_timeout_s=0.05, stop_timeout_s=2.0))
+        await go(fake, ComfyConfig(base_url=UNREACHABLE_URL, run_timeout_s=0.05, stop_timeout_s=2.0))
     assert fake.stopped
 
 

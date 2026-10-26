@@ -6,7 +6,7 @@ from __future__ import annotations
 import asyncio
 import io
 import json
-import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -24,7 +24,8 @@ from imagegen.logic.comfy.backend import ComfyBackend
 from imagegen.logic.comfy.client import ComfyClient, ComfyHTTPError, ComfyUnreachable
 from imagegen.logic.comfy.config import ComfyConfig
 from imagegen.logic.types import Route, Size, StepInput
-from PIL import Image
+from offline import UNREACHABLE_URL
+from PIL import Image, ImageFile, ImageOps
 
 SAMPLE = json.loads((Path(__file__).parent / "fixtures/object_info_0.42.0.json").read_text(encoding="utf-8"))
 COMFY_TEXT = "KSampler (node sample): torch.OutOfMemoryError: CUDA out of memory"
@@ -45,6 +46,8 @@ class LocalComfy:
         self.write_outputs = True
         self.failure: BaseException | None = None
         self.history: dict[str, Any] | None = None
+        self.output_png = png(64, 64)  # what view() returns
+        saved_png = png(64, 64)  # made here, outside the event loop
         config.input_dir.mkdir(parents=True)
         config.output_dir.mkdir(parents=True)
         local = self
@@ -63,7 +66,7 @@ class LocalComfy:
             prefix = graph[graphs.SAVE]["inputs"]["filename_prefix"]
             local.output = f"{prefix}_00001_.png"
             if local.write_outputs:
-                (config.output_dir / local.output).write_bytes(png(64, 64))
+                (config.output_dir / local.output).write_bytes(saved_png)
             return "pid"
 
         async def history(client: ComfyClient, prompt_id: str) -> dict[str, Any]:
@@ -73,7 +76,7 @@ class LocalComfy:
             return {prompt_id: {"status": {"status_str": "success"}, "outputs": {graphs.SAVE: {"images": [image]}}}}
 
         async def view(client: ComfyClient, filename: str, subfolder: str, type: str) -> bytes:
-            return png(64, 64)
+            return local.output_png
 
         for name, fake in [
             ("object_info", object_info),
@@ -90,7 +93,7 @@ class LocalComfy:
 
 @pytest.fixture
 def comfy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> LocalComfy:
-    return LocalComfy(ComfyConfig(root=tmp_path / "ComfyUI"), monkeypatch)
+    return LocalComfy(ComfyConfig(base_url=UNREACHABLE_URL, root=tmp_path / "ComfyUI"), monkeypatch)
 
 
 def ref_step() -> StepInput:
@@ -152,7 +155,7 @@ async def test_status_with_http_500_is_offline_with_raw(monkeypatch) -> None:
         raise ComfyHTTPError("GET", "http://127.0.0.1:8188/system_stats", 500, "Server got itself in trouble")
 
     monkeypatch.setattr(ComfyClient, "system_stats", erroring)
-    status = await ComfyBackend().status()
+    status = await ComfyBackend(ComfyConfig(base_url=UNREACHABLE_URL)).status()
     assert not status.online and status.version is None
     for problem in status.routes.values():
         assert problem is not None and problem.code is UnavailableCode.BACKEND_DOWN
@@ -236,35 +239,64 @@ async def test_odd_history_is_unexpected_response_with_raw(comfy: LocalComfy, hi
     assert comfy.leftovers() == []
 
 
-def noisy_jpeg(width: int, height: int) -> bytes:
-    noise = Image.effect_noise((width, height), 80)
-    image = Image.merge("RGB", (noise, noise.transpose(Image.Transpose.FLIP_LEFT_RIGHT), noise))
+# Pillow entry points that decode, resample, convert or encode pixels: the CPU-heavy part of handling an image.
+PIXEL_WORK = [
+    (Image, "open"),
+    (Image, "alpha_composite"),
+    (ImageFile.ImageFile, "load"),
+    (Image.Image, "resize"),
+    (Image.Image, "convert"),
+    (Image.Image, "point"),
+    (Image.Image, "copy"),
+    (Image.Image, "transpose"),
+    (Image.Image, "save"),
+    (ImageOps, "exif_transpose"),
+]
+
+
+def on_event_loop() -> bool:
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return False
+    return True
+
+
+@pytest.fixture
+def pixel_work(monkeypatch: pytest.MonkeyPatch) -> dict[str, list[str]]:
+    """Every Pillow pixel operation from now on, filed under whether it ran on the event loop or in a worker thread."""
+    seen: dict[str, list[str]] = {"loop": [], "thread": []}
+
+    def spying(real: Callable[..., Any], label: str) -> Callable[..., Any]:
+        def spy(*args: Any, **kwargs: Any) -> Any:
+            seen["loop" if on_event_loop() else "thread"].append(label)
+            return real(*args, **kwargs)
+
+        return spy
+
+    for owner, name in PIXEL_WORK:
+        monkeypatch.setattr(owner, name, spying(getattr(owner, name), f"{getattr(owner, '__name__', owner)}.{name}"))
+    return seen
+
+
+def mask_png(size: int) -> bytes:
     out = io.BytesIO()
-    image.save(out, format="JPEG", quality=90)
+    Image.new("L", (size, size), 255).save(out, format="PNG")
     return out.getvalue()
 
 
-async def test_preparing_large_images_does_not_stall_the_event_loop(comfy: LocalComfy) -> None:
-    photo = noisy_jpeg(3000, 2250)
-    step = StepInput(Route.REF, "x", (photo,) * 4, None, 1, Size(1024, 768))
-    gaps: list[float] = []
-    beating, finished = asyncio.Event(), asyncio.Event()
-
-    async def heartbeat() -> None:
-        last = time.perf_counter()
-        beating.set()
-        while not finished.is_set():
-            await asyncio.sleep(0.01)
-            now = time.perf_counter()
-            gaps.append(now - last)
-            last = now
-
-    beat = asyncio.create_task(heartbeat())
-    await beating.wait()  # the heartbeat must already be scheduled when run() starts its work
-    started = time.perf_counter()
+@pytest.mark.parametrize(
+    "make_step",
+    [
+        lambda: StepInput(Route.T2I, "x", (), None, 1, Size(64, 64)),
+        lambda: StepInput(Route.REF, "x", (png(64, 64), png(96, 64)), None, 1, Size(64, 64)),
+        lambda: StepInput(Route.MASK, "x", (png(64, 64),), mask_png(64), 1, Size(64, 64)),
+    ],
+    ids=["t2i", "ref", "mask"],
+)
+async def test_no_image_work_runs_on_the_event_loop(comfy: LocalComfy, pixel_work, make_step) -> None:
+    step = make_step()
+    pixel_work["loop"].clear()  # building the step's test images does not count
     await ComfyBackend(comfy.config).run(step)
-    took = time.perf_counter() - started
-    finished.set()
-    await beat
-    assert took > 0.5, f"the run took only {took:.2f}s, too little work to show a stall"
-    assert max(gaps) < 0.25, f"the event loop stalled for {max(gaps):.2f}s during a {took:.2f}s run"
+    assert pixel_work["loop"] == [], f"pixel work on the event loop: {pixel_work['loop']}"
+    assert pixel_work["thread"], "no pixel work was seen at all; the spies are not in the path"
