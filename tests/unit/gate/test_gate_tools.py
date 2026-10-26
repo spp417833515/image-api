@@ -49,5 +49,41 @@ def test_formal_is_superset_of_check():
     check = {s.name for s in for_mode(CHECK)}
     formal = {s.name for s in for_mode(FORMAL)}
     assert check < formal
-    assert {"live", "unit"} <= check
+    assert {"ruff-lint", "ruff-format", "js-syntax", "unit", "live"} <= check
     assert len({s.name for s in SUITES}) == len(SUITES)
+
+
+def test_js_check_catches_module_syntax_error(tmp_path):
+    from gate import js_check
+
+    (tmp_path / "good.js").write_text('import { a } from "./x.js";\nexport const b = a;\n', encoding="utf-8")
+    assert js_check.main(tmp_path) == 0
+    (tmp_path / "bad.js").write_text('import { a } from "./x.js";\nexport const b = ;\n', encoding="utf-8")
+    assert js_check.main(tmp_path) == 1
+
+
+def test_js_check_red_when_no_files(tmp_path):
+    from gate import js_check
+
+    assert js_check.main(tmp_path) == 1
+
+
+def test_gate_runs_are_exclusive(tmp_path, monkeypatch):
+    import fcntl
+    import threading
+
+    from gate import check as check_mod
+
+    monkeypatch.setattr(check_mod, "_check_locked", lambda root, gate_dir, mode, use_cache: {"ran": True})
+    gate_dir = tmp_path / ".pp/gate"
+    gate_dir.mkdir(parents=True)
+    result: dict = {}
+    with (gate_dir / "gate.lock").open("w") as held:
+        fcntl.flock(held, fcntl.LOCK_EX)
+        worker = threading.Thread(target=lambda: result.update(check_mod.check(tmp_path, CHECK)))
+        worker.start()
+        worker.join(0.3)
+        assert worker.is_alive(), "a second gate run must wait for the lock to be released"
+        fcntl.flock(held, fcntl.LOCK_UN)
+    worker.join(5)
+    assert result == {"ran": True}

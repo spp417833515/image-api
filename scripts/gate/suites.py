@@ -27,6 +27,7 @@ class Suite:
 SUITES: tuple[Suite, ...] = (
     Suite("ruff-lint", "command", ("ruff", "check", "."), frozenset({CHECK, FORMAL}), timeout_s=120),
     Suite("ruff-format", "command", ("ruff", "format", "--check", "."), frozenset({CHECK, FORMAL}), timeout_s=120),
+    Suite("js-syntax", "command", ("python", "scripts/gate/js_check.py"), frozenset({CHECK, FORMAL}), timeout_s=120),
     Suite(
         "unit", "pytest", ("tests", "-m", "not live and not live_versions"), frozenset({CHECK, FORMAL}), timeout_s=300
     ),

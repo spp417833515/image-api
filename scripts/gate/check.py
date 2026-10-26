@@ -1,13 +1,19 @@
 """One gate run: compute the tree sha → hit the cache, or run every suite of this mode in order → write the report.
 
 Cache key = tree sha + mode. The tree sha covers all tracked and non-ignored files, including scripts/gate itself, so a changed tool means a new key.
+
+Only one gate run at a time on this machine (an exclusive lock on .pp/gate/gate.lock): the live suites share the one real ComfyUI,
+and their "nothing left behind / no leftover prompts" assertions assume nobody else is generating images; concurrent runs would also
+share the temporary index used to compute the tree sha. A second run waits for the first to finish, then usually hits the cache.
 """
 
 from __future__ import annotations
 
+import fcntl
 import json
 import os
 import shutil
+import sys
 import time
 from datetime import UTC, datetime
 from pathlib import Path
@@ -20,6 +26,17 @@ from .tree import tree_sha
 
 def check(root: Path, mode: str, use_cache: bool = True) -> dict:
     gate_dir = root / ".pp/gate"
+    gate_dir.mkdir(parents=True, exist_ok=True)
+    with (gate_dir / "gate.lock").open("w") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            print("[gate] another gate run is in progress; waiting for it to finish…", file=sys.stderr, flush=True)
+            fcntl.flock(lock, fcntl.LOCK_EX)
+        return _check_locked(root, gate_dir, mode, use_cache)
+
+
+def _check_locked(root: Path, gate_dir: Path, mode: str, use_cache: bool) -> dict:
     sha = tree_sha(root, gate_dir / "tmp")
     run_dir = gate_dir / "runs" / f"{sha}-{mode}"
     cached = run_dir / "report.json"
