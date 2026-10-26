@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>生图入口</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="/static/css/theme.css">
+<link rel="stylesheet" href="/static/css/layout.css">
+<link rel="stylesheet" href="/static/css/components.css">
+<script type="module" src="/static/js/main.js"></script>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand"><span class="logo" id="logo"></span>生图入口<small>Qwen-Image 2.1 · 本机</small></div>
+    <button class="status" id="status" data-act="ver" aria-haspopup="dialog" title="ComfyUI 版本和检查结果"></button>
+    <div class="pop" id="pop" role="dialog" aria-label="ComfyUI 版本" hidden></div>
+  </header>
+  <main class="work">
+    <aside class="left">
+      <div class="left-head"><b>步骤</b><span class="n" id="stepCount"></span></div>
+      <div class="steps" id="steps"></div>
+      <div class="dock" id="dock"></div>
+    </aside>
+    <section class="center">
+      <div class="s-head" id="sHead"></div>
+      <div class="stage" id="stage"></div>
+      <div class="s-foot" id="sFoot"></div>
+    </section>
+    <aside class="film">
+      <div class="film-head"><b>历史</b><span id="filmCount"></span></div>
+      <div class="film-list" id="film"></div>
+    </aside>
+  </main>
+</div>
+<input type="file" id="pick" accept="image/*" multiple class="sr">
+</body>
+</html>

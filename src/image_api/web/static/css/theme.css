@@ -1,0 +1,50 @@
+/* 主题：颜色、字体、间距、圆角、尺寸只在这里定义，其它样式只引用这些变量 */
+:root{
+  /* ---------- 颜色 ---------- */
+  --bg:#0a0a0c;
+  --bg-2:#0f0f12;
+  --panel:#121216;
+  --card:#17171c;
+  --card-2:#1f1f26;
+  --card-3:#282830;
+  --well:#0c0c0f;
+  --line:#24242b;
+  --line-2:#363640;
+  --text:#ececf1;
+  --text-2:#a5a5b2;
+  --text-3:#6e6e7b;
+  --accent:#b39bff;
+  --accent-2:#7b8cff;
+  --accent-ink:#0d0b18;
+  --ok:#43d18d;
+  --warn:#f2b43f;
+  --danger:#ff6464;
+  --r-t2i:#64b2ff;
+  --r-ref:#45d2b4;
+  --r-mask:#ff7fcd;
+  --mask:#ff3fa4;
+  --scrim:rgba(8,8,11,.74);
+  --scrim-2:rgba(8,8,11,.5);
+  --glow:rgba(255,255,255,.07);
+  --shadow:0 18px 50px rgba(0,0,0,.6);
+  --shadow-s:0 6px 18px rgba(0,0,0,.45);
+  /* ---------- 字体 ---------- */
+  --font:"Inter","PingFang SC","Hiragino Sans GB","Noto Sans CJK SC","Source Han Sans SC","Microsoft YaHei",system-ui,sans-serif;
+  --mono:"JetBrains Mono","SFMono-Regular","Cascadia Mono","Noto Sans Mono CJK SC",Menlo,Consolas,monospace;
+  --fs-2xs:10px; --fs-xs:11px; --fs-s:12px; --fs-m:13px; --fs-l:15px; --fs-xl:18px; --fs-hero:44px;
+  /* ---------- 间距 ---------- */
+  --sp-0:2px; --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:20px; --sp-6:24px; --sp-7:32px;
+  /* ---------- 圆角 ---------- */
+  --r-xs:4px; --r-s:6px; --r-m:10px; --r-l:14px; --r-pill:999px;
+  /* ---------- 尺寸 ---------- */
+  --top-h:48px; --col-left:388px; --col-film:118px;
+  --head-h:44px; --foot-h:56px; --tile-h:72px; --tile-h-empty:46px; --btn-h:30px; --gen-h:52px; --stage-pad:28px;
+  --fault-w:560px;
+  --pop-indent:22px;   /* 浮层里路由不可用原因的缩进：对齐到勾叉图标（14px）+ 间距（8px）之后 */
+  --mask-alpha:.55;
+  /* ---------- 导出的蒙版 PNG：白 = 重画，黑 = 不动（数据值，不是界面色） ---------- */
+  --mask-on:#fff; --mask-off:#000;
+}
+@media (max-width:1200px){
+  :root{ --col-left:340px; --col-film:96px; --tile-h:62px; --stage-pad:20px; }
+}
