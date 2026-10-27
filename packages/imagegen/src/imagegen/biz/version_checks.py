@@ -20,7 +20,8 @@ from ..logic.types import Route, Size, StepInput, StepOutput
 from .routing import ROUTE_NAMES
 
 # The mask route's limit outside the white area: mean |difference| per pixel, 0–255, between the base image and the
-# result (the user's limit, ppwiki decision id=5; measured 1.53 on a photo, up to 4.25 on line art).
+# result (the user's limit, ppwiki decision id=5; with the base-latent graph of its fourth revision measured 0.58 on a
+# photo, 2.07 on line art, 0.33 on a solid colour).
 MAX_MASK_OUTSIDE_DRIFT = 5.0
 
 START_TIMEOUT_S = 180.0  # ComfyUI is online about 10 s after start; models load on the first image, not here
@@ -78,9 +79,9 @@ class NodesCheck:
 
 @dataclass(frozen=True, slots=True)
 class RoutesCheck:
-    """Each route makes one TRIAL_SIZE image. The text-to-image result is the base of the other two (a natural image:
-    on flat synthetic colours the mask route shifts colours everywhere, 9.2/255 measured, so the limit would not
-    hold); the mask route must also keep the area outside its mask within MAX_MASK_OUTSIDE_DRIFT."""
+    """Each route makes one TRIAL_SIZE image. The text-to-image result is the base of the other two (a natural image,
+    like the pictures users bring); the mask route must also keep the area outside its mask within
+    MAX_MASK_OUTSIDE_DRIFT."""
 
     backend: ImageBackend
     name: ClassVar[str] = "routes"

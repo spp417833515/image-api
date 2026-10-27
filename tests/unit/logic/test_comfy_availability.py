@@ -15,7 +15,6 @@ from imagegen.logic.types import Route
 
 SAMPLE = json.loads((Path(__file__).parent / "fixtures/object_info_0.42.0.json").read_text(encoding="utf-8"))
 CONFIG = ComfyConfig()
-PATCH = "qwen_image_2.1_fun_controlnet_union_int8_convrot.safetensors"
 
 
 @pytest.fixture
@@ -27,15 +26,14 @@ def test_captured_sample_has_every_route(info) -> None:
     assert check_routes(info, CONFIG) == {Route.T2I: None, Route.REF: None, Route.MASK: None}
 
 
-def test_missing_mask_weights_only_blocks_the_mask_route(info) -> None:
-    info["ModelPatchLoader"]["input"]["required"]["name"][0].remove(PATCH)
-    routes = check_routes(info, CONFIG)
-    assert routes[Route.T2I] is None and routes[Route.REF] is None
-    problem = routes[Route.MASK]
-    assert problem is not None
-    assert problem.code is UnavailableCode.MISSING_FILE
-    assert problem.message == f"缺少蒙版权重 models/model_patches/{PATCH}"
-    assert problem.raw == f"models/model_patches/{PATCH}"
+def test_the_mask_route_needs_no_file_of_its_own(info) -> None:
+    """Every model file it loads is shared with the other routes: a missing VAE blocks all three, naming the file."""
+    info["VAELoader"]["input"]["required"]["vae_name"][0].remove(CONFIG.vae)
+    for route, problem in check_routes(info, CONFIG).items():
+        assert problem is not None, route
+        assert problem.code is UnavailableCode.MISSING_FILE
+        assert problem.message == f"缺少VAE models/vae/{CONFIG.vae}"
+        assert problem.raw == f"models/vae/{CONFIG.vae}"
 
 
 def test_missing_base_model_blocks_every_route_and_names_the_file(info) -> None:
@@ -56,15 +54,16 @@ def test_several_missing_files_are_all_listed(info) -> None:
     assert problem.raw.splitlines() == [f"models/text_encoders/{CONFIG.clip}", f"models/vae/{CONFIG.vae}"]
 
 
-def test_missing_node(info) -> None:
-    del info["ZImageFunControlnet"]
+@pytest.mark.parametrize("node", ["VAEEncode", "SetLatentNoiseMask", "LoadImageMask"])
+def test_a_missing_mask_node_blocks_only_the_mask_route(info, node: str) -> None:
+    del info[node]
     routes = check_routes(info, CONFIG)
     assert routes[Route.T2I] is None and routes[Route.REF] is None
     problem = routes[Route.MASK]
     assert problem is not None
     assert problem.code is UnavailableCode.MISSING_NODE
-    assert problem.message == "缺少节点 ZImageFunControlnet"
-    assert problem.raw == "ZImageFunControlnet"
+    assert problem.message == f"缺少节点 {node}"
+    assert problem.raw == node
 
 
 def test_missing_load_image_blocks_both_image_routes(info) -> None:
@@ -75,12 +74,12 @@ def test_missing_load_image_blocks_both_image_routes(info) -> None:
     assert routes[Route.MASK] is not None and routes[Route.MASK].code is UnavailableCode.MISSING_NODE
 
 
-def test_missing_inpaint_image_input_is_a_missing_node(info) -> None:
-    del info["ZImageFunControlnet"]["input"]["optional"]["inpaint_image"]
+def test_a_missing_noise_mask_input_is_a_missing_node(info) -> None:
+    del info["SetLatentNoiseMask"]["input"]["required"]["mask"]
     problem = check_route(info, CONFIG, Route.MASK)
     assert problem is not None
     assert problem.code is UnavailableCode.MISSING_NODE
-    assert problem.message == "节点 ZImageFunControlnet 缺少输入 inpaint_image"
+    assert problem.message == "节点 SetLatentNoiseMask 缺少输入 mask"
 
 
 def test_encoder_without_image_slots_blocks_image_routes(info) -> None:

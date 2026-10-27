@@ -73,39 +73,34 @@ def mask_rewrite(
     references: Sequence[str],
     output_prefix: str,
 ) -> Graph:
-    """ZImageFunControlnet repaints the white area of mask on base (inpaint_image); base and mask must already be `size`.
+    """Repaint the white area of mask on base; base and mask must already be `size` (mask binary, white = repaint).
 
-    QwenImageDiffsynthControlnet is not used: measured, it shifts the whole picture (17.4/255 outside the mask vs 0.7).
+    Sampling starts from the base image's own latent (VAEEncode) with mask as its noise mask (SetLatentNoiseMask):
+    every step puts the original latent back outside the white area, so only the white area is generated, in the
+    context of the colours around it. The base also goes to the encoder as image_1, so the instruction can refer to
+    what is under the mask ("make its fur blue" keeps the subject's pose). ppwiki decision id=5, fourth revision.
 
-    The base also goes to the encoder as image_1 (user decision, ppwiki decision 5):
-    保持主体结构做编辑；代价约 2.2× 时间，白区外漂移在线稿类图上实测到 4.25/255，验收门槛 5/255。
-    With it the instruction can refer to what is under the mask ("make its fur blue" keeps the subject's pose); without
-    it the white area is drawn from scratch. Measured: ~40 s vs ~17 s per step on fox.jpg; outside the mask 1.1–2.1/255
-    on fox.jpg (photo) and up to 4.25/255 on sheet.jpg (line art).
-
-    The drift above is this graph's raw output (what an upgrade's checks measure): it repaints the whole picture and on
-    solid colours shifts it by 15.8–18.5/255 outside the mask. What a user gets is not this output: the business layer
-    pastes the original back outside the white area, with a feathered edge (imagegen.biz.masking.paste_back, ppwiki
-    decision 5, third revision).
+    Measured against the inpaint patch it replaces (ZImageFunControlnet + ModelPatchLoader, empty latent start), same
+    seeds, .pp/tmp/line2/mask_rca: background shift inside the white area on solid colour 1.0–1.2/255 (was
+    4.8–13.2, a visible grey square); 1 px and 8 px strokes come back as the original (were the patch's mid-grey fill,
+    which its 16 px keep map missed); outside the white area 0.6–2.0/255 (was 1.2–7.2); edits of what is under the
+    mask as strong as before or stronger; about 2.2x faster (8–17 s a step instead of 20–37 s). Known weakness: a
+    small object asked for on a featureless flat colour is often not drawn (the area stays as it was).
+    The business layer still pastes the original back outside the white area (imagegen.biz.masking.paste_back).
     """
     graph = _loaders(config)
-    graph["patch"] = {"class_type": "ModelPatchLoader", "inputs": {"name": config.model_patch}}
     graph["load_base"] = {"class_type": "LoadImage", "inputs": {"image": base}}
     graph["load_mask"] = {"class_type": "LoadImageMask", "inputs": {"image": mask, "channel": config.mask_channel}}
-    graph["control"] = {
-        "class_type": "ZImageFunControlnet",
-        "inputs": {
-            "model": ["unet", 0],
-            "model_patch": ["patch", 0],
-            "vae": ["vae", 0],
-            "strength": config.control_strength,
-            "inpaint_image": ["load_base", 0],
-            "mask": ["load_mask", 0],
-        },
+    graph["base_latent"] = {"class_type": "VAEEncode", "inputs": {"pixels": ["load_base", 0], "vae": ["vae", 0]}}
+    graph["noise_mask"] = {
+        "class_type": "SetLatentNoiseMask",
+        "inputs": {"samples": ["base_latent", 0], "mask": ["load_mask", 0]},
     }
     loads = ["load_base", *_load_images(graph, references, first=2)]  # base as image_1: see the docstring
     graph.update(
-        _sample_and_save(config, prompt, seed, size, output_prefix, model=["control", 0], encoder_images=loads)
+        _sample_and_save(
+            config, prompt, seed, size, output_prefix, model=["unet", 0], encoder_images=loads, latent=["noise_mask", 0]
+        )
     )
     return graph
 
@@ -139,7 +134,9 @@ def _sample_and_save(
     *,
     model: list[Any],
     encoder_images: Sequence[str],
+    latent: list[Any] | None = None,
 ) -> Graph:
+    """Encoder, sampler, decoder and output node. latent: where sampling starts; None = an empty latent of `size`."""
     encode_inputs: dict[str, Any] = {
         "clip": ["clip", 0],
         "prompt": prompt,
@@ -149,19 +146,21 @@ def _sample_and_save(
     }
     for slot, node_id in enumerate(encoder_images, start=1):
         encode_inputs[f"images.image_{slot}"] = [node_id, 0]
-    return {
-        "encode": {"class_type": "TextEncodeQwenImage21", "inputs": encode_inputs},
-        "latent": {
+    nodes: Graph = {"encode": {"class_type": "TextEncodeQwenImage21", "inputs": encode_inputs}}
+    if latent is None:
+        nodes["latent"] = {
             "class_type": "EmptyLatentImage",
             "inputs": {"width": size.width, "height": size.height, "batch_size": 1},
-        },
+        }
+        latent = ["latent", 0]
+    return nodes | {
         SAMPLER: {
             "class_type": "KSampler",
             "inputs": {
                 "model": model,
                 "positive": ["encode", 0],
                 "negative": ["encode", 1],
-                "latent_image": ["latent", 0],
+                "latent_image": latent,
                 "seed": seed,
                 "steps": config.steps,
                 "cfg": config.cfg,

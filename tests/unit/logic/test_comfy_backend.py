@@ -179,7 +179,7 @@ async def test_http_error_during_the_step_is_step_failed_with_comfyui_body(comfy
 
 async def test_unavailable_route_is_refused_before_uploading(comfy: LocalComfy, monkeypatch) -> None:
     info = json.loads(json.dumps(SAMPLE))
-    del info["ZImageFunControlnet"]
+    del info["SetLatentNoiseMask"]
 
     async def object_info(client: ComfyClient) -> dict[str, Any]:
         return info
@@ -190,7 +190,7 @@ async def test_unavailable_route_is_refused_before_uploading(comfy: LocalComfy, 
     step = StepInput(Route.MASK, "x", (png(64, 64),), mask.getvalue(), 1, Size(64, 64))
     with pytest.raises(BackendUnavailable) as caught:
         await ComfyBackend(comfy.config).run(step)
-    assert caught.value.code is UnavailableCode.MISSING_NODE and caught.value.raw == "ZImageFunControlnet"
+    assert caught.value.code is UnavailableCode.MISSING_NODE and caught.value.raw == "SetLatentNoiseMask"
     assert comfy.leftovers() == []
 
 

@@ -25,7 +25,7 @@ from imagegen.logic.backend import BackendUnavailable, Unavailable, UnavailableC
 from imagegen.logic.types import Route
 
 ONE_STEP = GenerateRequest(steps=[StepRequest(instruction="画一只狐狸")])
-MASK_FILE = "models/model_patches/qwen_image_2.1_fun_controlnet_union_int8_convrot.safetensors"
+MASK_FILE = "models/example/only_the_mask_route_needs_this.safetensors"  # a fake backend's file
 
 
 @pytest.fixture

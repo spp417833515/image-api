@@ -15,7 +15,7 @@ from imagegen.logic.comfy.backend import ComfyBackend
 from imagegen.logic.comfy.client import ComfyClient
 from imagegen.logic.comfy.config import ComfyConfig
 from imagegen.logic.types import Route, Size, StepInput
-from PIL import Image, ImageDraw, ImageStat
+from PIL import Image, ImageChops, ImageDraw, ImageStat
 from thresholds import MAX_OUTSIDE_DRIFT, MIN_INSIDE_CHANGE  # sibling module in tests/live
 
 pytestmark = pytest.mark.live
@@ -25,6 +25,13 @@ CONFIG = ComfyConfig()
 RED_FOX = (
     "A red fox sitting in fresh snow at golden hour, soft side light, shallow depth of field, 85mm lens. No lettering."
 )
+
+# Solid colour: the mean colour of the background left inside the white area, against the original colour. The inpaint
+# patch the mask route used before shifted it 4.8–13.2 (a grey square once the original is pasted back around it);
+# sampling from the base latent shifts it 1.0–1.2 (.pp/tmp/line2/mask_rca, ppwiki decision id=5, fourth revision).
+MAX_BACKGROUND_SHIFT = 3.0
+# Thin strokes: mean |difference| on a stroke's own pixels. The patch's mid-grey fill gave 35–55; now 0.4–3.9.
+MAX_STROKE_CHANGE = 10.0
 
 
 def imageapi_files() -> set[Path]:
@@ -111,6 +118,42 @@ async def test_mask_rewrite_changes_only_the_white_area_of_line_art() -> None:
 
     print(f"robe redness: {redness(base):.1f} → {redness(result):.1f}")
     assert redness(result) - redness(base) >= 20  # the instruction took effect: the robe turned red
+
+
+async def test_mask_rewrite_keeps_a_solid_colour_background(tmp_path) -> None:
+    colour = (120, 160, 90)
+    solid = tmp_path / "solid.png"
+    Image.new("RGB", (1024, 768), colour).save(solid)
+    mask = Image.new("L", (1024, 768), 0)
+    ImageDraw.Draw(mask).rectangle((560, 260, 839, 519), fill=255)
+    base, result, sent_mask = await run_mask_step(solid, mask, "A red apple.", 7)
+    _, outside = drift(base, result, sent_mask, "solid colour")
+    # Inside the white area, the pixels still close to the original colour are the background the model left there.
+    near = ImageChops.difference(result, base).convert("L").point(lambda level: 255 if level < 40 else 0)
+    background = ImageChops.multiply(near, sent_mask)
+    stats = ImageStat.Stat(result, mask=background)
+    shift = sum(abs(mean - original) for mean, original in zip(stats.mean, colour, strict=True)) / 3
+    share = stats.count[0] / ImageStat.Stat(sent_mask).sum[0] * 255
+    print(
+        f"solid colour: background inside the mask {[round(m, 1) for m in stats.mean]} vs {colour}, shift {shift:.2f}"
+    )
+    assert share > 0.3  # enough background left inside the white area to measure
+    assert shift <= MAX_BACKGROUND_SHIFT
+    assert outside <= MAX_OUTSIDE_DRIFT
+
+
+async def test_thin_strokes_come_back_as_the_original_not_grey() -> None:
+    strokes = {"1 px": ((150, 100, 150, 800), 1), "8 px": ((300, 100, 300, 800), 8)}
+    mask = Image.new("L", (960, 960), 0)
+    for line, width in strokes.values():
+        ImageDraw.Draw(mask).line(line, fill=255, width=width)
+    base, result, _ = await run_mask_step(ASSETS / "fox.jpg", mask, "A red ribbon.", 7)
+    for name, (line, width) in strokes.items():
+        stroke = Image.new("L", base.size, 0)
+        ImageDraw.Draw(stroke).line(line, fill=255, width=width)
+        change = sum(ImageStat.Stat(ImageChops.difference(result, base), mask=stroke).mean) / 3
+        print(f"{name} stroke: mean |diff| {change:.2f} (limit {MAX_STROKE_CHANGE})")
+        assert change <= MAX_STROKE_CHANGE, name
 
 
 async def test_comfyui_rejection_is_step_failed_with_its_original_text() -> None:

@@ -25,7 +25,6 @@ class ComfyConfig:
     clip: str = "qwen3vl_8b_int8_convrot.safetensors"
     clip_type: str = "qwen_image"
     vae: str = "qwen_image_2.1_vae_bf16.safetensors"
-    model_patch: str = "qwen_image_2.1_fun_controlnet_union_int8_convrot.safetensors"
 
     # Sampling (fixed for every route).
     steps: int = 25
@@ -34,8 +33,7 @@ class ComfyConfig:
     scheduler: str = "simple"
     denoise: float = 1.0
     negative_prompt: str = ""
-    # Mask route: ZImageFunControlnet strength, and which channel of the uploaded mask PNG LoadImageMask reads.
-    control_strength: float = 1.0
+    # Mask route: which channel of the uploaded mask PNG LoadImageMask reads.
     mask_channel: str = "red"
 
     # Seconds: one HTTP request; one whole step (queue wait + model load + sampling); waiting for ComfyUI to let go of

@@ -293,39 +293,30 @@ def test_comfyui_not_listening_is_503_comfy_down(tmp_path) -> None:
         assert plan(client, {"steps": [{"instruction": RED_FOX}]})["steps"][0]["unavailable"]["code"] == "comfy_down"
 
 
-def test_missing_mask_weights_block_only_the_mask_route(tmp_path) -> None:
-    missing = "imageapi_not_installed_patch.safetensors"
-    path = f"models/model_patches/{missing}"
-    with running_api(tmp_path / "data", ComfyConfig(model_patch=missing)) as client:
+def test_a_missing_model_file_is_503_naming_the_file(tmp_path) -> None:
+    """A missing model file blocks the routes that load it and says which file. Since ppwiki decision id=5 (fourth
+    revision) the mask route loads no file of its own, so a missing VAE blocks all three routes."""
+    missing = "imageapi_not_installed_vae.safetensors"
+    path = f"models/vae/{missing}"
+    with running_api(tmp_path / "data", ComfyConfig(vae=missing)) as client:
         status = client.get("/api/status").json()
-        assert status["online"] and status["routes"]["t2i"]["available"] and status["routes"]["ref"]["available"]
-        assert not status["routes"]["mask"]["available"] and path in status["routes"]["mask"]["reason"]
+        assert status["online"]
+        for route in ("t2i", "ref", "mask"):
+            assert not status["routes"][route]["available"] and path in status["routes"][route]["reason"], route
         base = upload(client, solid_png(256, 256, (90, 120, 160)), "base.png")
         mask = Image.new("L", (256, 256), 0)
         ImageDraw.Draw(mask).rectangle((64, 64, 191, 191), fill=255)
         out = io.BytesIO()
         mask.save(out, format="PNG")
         painted = upload(client, out.getvalue(), "mask.png")
-        response = client.post(
-            "/api/generate",
-            json={"steps": [{"instruction": "a red ball", "images": [base["id"]], "mask": painted["id"]}]},
-        )
-        assert response.status_code == 503, response.text
-        body = response.json()
-        assert body["code"] == "missing_file" and path in body["message"] and body["raw"] == path
-        job = run_job(
-            client,
-            {
-                "steps": [
-                    {"instruction": "a red ball on a table", "width": 256, "height": 256, "seed": 3},
-                    {"instruction": "make the ball blue", "images": ["$prev"], "seed": 4},
-                ]
-            },
-        )
-        assert job["state"] == "done", job
-        assert [s["route"] for s in job["steps"]] == ["t2i", "ref"]
-        for step in job["steps"]:
-            assert done_image(client, step).size == (256, 256)
+        mask_step = {"instruction": "a red ball", "images": [base["id"]], "mask": painted["id"]}
+        for step in (mask_step, {"instruction": RED_FOX}):
+            unavailable = plan(client, {"steps": [step]})["steps"][0]["unavailable"]
+            assert unavailable["code"] == "missing_file" and path in unavailable["message"]
+            response = client.post("/api/generate", json={"steps": [step]})
+            assert response.status_code == 503, response.text
+            body = response.json()
+            assert body["code"] == "missing_file" and path in body["message"] and body["raw"] == path
 
 
 def test_a_step_comfyui_rejects_fails_with_its_number_and_original_text(tmp_path) -> None:

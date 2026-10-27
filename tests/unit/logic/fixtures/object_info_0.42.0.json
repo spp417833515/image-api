@@ -1,33 +1,4 @@
 {
- "UNETLoader": {
-  "input": {
-   "required": {
-    "unet_name": [
-     [
-      "qwen-image-2.1-UC-int8_convrot.safetensors",
-      "qwen_image_2.1_int8_convrot.safetensors"
-     ]
-    ],
-    "weight_dtype": [
-     [
-      "default",
-      "fp8_e4m3fn",
-      "fp8_e4m3fn_fast",
-      "fp8_e5m2"
-     ],
-     {
-      "advanced": true
-     }
-    ]
-   }
-  },
-  "output": [
-   "MODEL"
-  ],
-  "output_name": [
-   "MODEL"
-  ]
- },
  "CLIPLoader": {
   "input": {
    "required": {
@@ -90,126 +61,6 @@
   ],
   "output_name": [
    "CLIP"
-  ]
- },
- "VAELoader": {
-  "input": {
-   "required": {
-    "vae_name": [
-     [
-      "qwen_image_2.1_vae_bf16.safetensors",
-      "pixel_space"
-     ]
-    ]
-   }
-  },
-  "output": [
-   "VAE"
-  ],
-  "output_name": [
-   "VAE"
-  ]
- },
- "ModelPatchLoader": {
-  "input": {
-   "required": {
-    "name": [
-     [
-      "qwen_image_2.1_fun_controlnet_union_int8_convrot.safetensors"
-     ]
-    ]
-   }
-  },
-  "output": [
-   "MODEL_PATCH"
-  ],
-  "output_name": [
-   "MODEL_PATCH"
-  ]
- },
- "TextEncodeQwenImage21": {
-  "input": {
-   "required": {
-    "clip": [
-     "CLIP",
-     {}
-    ],
-    "prompt": [
-     "STRING",
-     {
-      "multiline": true,
-      "dynamicPrompts": true
-     }
-    ],
-    "negative_prompt": [
-     "STRING",
-     {
-      "multiline": true,
-      "dynamicPrompts": true
-     }
-    ],
-    "resolution": [
-     "INT",
-     {
-      "tooltip": "Reference images are resized to about resolution x resolution pixels, at multiples of 32, preserving aspect ratio. 0 keeps each reference at its own size, rounded to a multiple of 32. ",
-      "default": 1024,
-      "min": 0,
-      "max": 4096,
-      "step": 32
-     }
-    ],
-    "images": [
-     "COMFY_AUTOGROW_V3",
-     {
-      "tooltip": "Reference images, seen by the text encoder and spliced into the sequence as VAE latents.",
-      "template": {
-       "input": {
-        "required": {
-         "image": [
-          "IMAGE",
-          {}
-         ]
-        }
-       },
-       "names": [
-        "image_1",
-        "image_2",
-        "image_3",
-        "image_4",
-        "image_5",
-        "image_6",
-        "image_7",
-        "image_8",
-        "image_9",
-        "image_10",
-        "image_11",
-        "image_12",
-        "image_13",
-        "image_14",
-        "image_15",
-        "image_16"
-       ],
-       "min": 0
-      }
-     }
-    ]
-   },
-   "optional": {
-    "vae": [
-     "VAE",
-     {}
-    ]
-   }
-  },
-  "output": [
-   "CONDITIONING",
-   "CONDITIONING",
-   "LATENT"
-  ],
-  "output_name": [
-   "positive",
-   "negative",
-   "latent"
   ]
  },
  "EmptyLatentImage": {
@@ -397,59 +248,6 @@
    "LATENT"
   ]
  },
- "VAEDecode": {
-  "input": {
-   "required": {
-    "samples": [
-     "LATENT",
-     {
-      "tooltip": "The latent to be decoded."
-     }
-    ],
-    "vae": [
-     "VAE",
-     {
-      "tooltip": "The VAE model used for decoding the latent."
-     }
-    ]
-   }
-  },
-  "output": [
-   "IMAGE"
-  ],
-  "output_name": [
-   "IMAGE"
-  ]
- },
- "SaveImage": {
-  "input": {
-   "required": {
-    "images": [
-     "IMAGE",
-     {
-      "tooltip": "The images to save."
-     }
-    ],
-    "filename_prefix": [
-     "STRING",
-     {
-      "default": "ComfyUI",
-      "tooltip": "The prefix for the file to save. This may include formatting information such as %date:yyyy-MM-dd% or %Empty Latent Image.width% to include values from nodes."
-     }
-    ]
-   },
-   "hidden": {
-    "prompt": "PROMPT",
-    "extra_pnginfo": "EXTRA_PNGINFO"
-   }
-  },
-  "output": [
-   "IMAGE"
-  ],
-  "output_name": [
-   "images"
-  ]
- },
  "LoadImage": {
   "input": {
    "required": {
@@ -500,55 +298,155 @@
    "MASK"
   ]
  },
- "ZImageFunControlnet": {
+ "SaveImage": {
   "input": {
    "required": {
-    "model": [
-     "MODEL"
-    ],
-    "model_patch": [
-     "MODEL_PATCH"
-    ],
-    "vae": [
-     "VAE"
-    ],
-    "strength": [
-     "FLOAT",
+    "images": [
+     "IMAGE",
      {
-      "default": 1.0,
-      "min": -10.0,
-      "max": 10.0,
-      "step": 0.01
+      "tooltip": "The images to save."
+     }
+    ],
+    "filename_prefix": [
+     "STRING",
+     {
+      "default": "ComfyUI",
+      "tooltip": "The prefix for the file to save. This may include formatting information such as %date:yyyy-MM-dd% or %Empty Latent Image.width% to include values from nodes."
+     }
+    ]
+   },
+   "hidden": {
+    "prompt": "PROMPT",
+    "extra_pnginfo": "EXTRA_PNGINFO"
+   }
+  },
+  "output": [
+   "IMAGE"
+  ],
+  "output_name": [
+   "images"
+  ]
+ },
+ "SetLatentNoiseMask": {
+  "input": {
+   "required": {
+    "samples": [
+     "LATENT"
+    ],
+    "mask": [
+     "MASK"
+    ]
+   }
+  },
+  "output": [
+   "LATENT"
+  ],
+  "output_name": [
+   "LATENT"
+  ]
+ },
+ "TextEncodeQwenImage21": {
+  "input": {
+   "required": {
+    "clip": [
+     "CLIP",
+     {}
+    ],
+    "prompt": [
+     "STRING",
+     {
+      "multiline": true,
+      "dynamicPrompts": true
+     }
+    ],
+    "negative_prompt": [
+     "STRING",
+     {
+      "multiline": true,
+      "dynamicPrompts": true
+     }
+    ],
+    "resolution": [
+     "INT",
+     {
+      "tooltip": "Reference images are resized to about resolution x resolution pixels, at multiples of 32, preserving aspect ratio. 0 keeps each reference at its own size, rounded to a multiple of 32. ",
+      "default": 1024,
+      "min": 0,
+      "max": 4096,
+      "step": 32
+     }
+    ],
+    "images": [
+     "COMFY_AUTOGROW_V3",
+     {
+      "tooltip": "Reference images, seen by the text encoder and spliced into the sequence as VAE latents.",
+      "template": {
+       "input": {
+        "required": {
+         "image": [
+          "IMAGE",
+          {}
+         ]
+        }
+       },
+       "names": [
+        "image_1",
+        "image_2",
+        "image_3",
+        "image_4",
+        "image_5",
+        "image_6",
+        "image_7",
+        "image_8",
+        "image_9",
+        "image_10",
+        "image_11",
+        "image_12",
+        "image_13",
+        "image_14",
+        "image_15",
+        "image_16"
+       ],
+       "min": 0
+      }
      }
     ]
    },
    "optional": {
-    "image": [
-     "IMAGE"
+    "vae": [
+     "VAE",
+     {}
+    ]
+   }
+  },
+  "output": [
+   "CONDITIONING",
+   "CONDITIONING",
+   "LATENT"
+  ],
+  "output_name": [
+   "positive",
+   "negative",
+   "latent"
+  ]
+ },
+ "UNETLoader": {
+  "input": {
+   "required": {
+    "unet_name": [
+     [
+      "qwen-image-2.1-UC-int8_convrot.safetensors",
+      "qwen_image_2.1_int8_convrot.safetensors"
+     ]
     ],
-    "inpaint_image": [
-     "IMAGE"
-    ],
-    "mask": [
-     "MASK"
-    ],
-    "start_percent": [
-     "FLOAT",
+    "weight_dtype": [
+     [
+      "default",
+      "fp8_e4m3fn",
+      "fp8_e4m3fn_fast",
+      "fp8_e5m2"
+     ],
      {
-      "default": 0.0,
-      "min": 0.0,
-      "max": 1.0,
-      "step": 0.001,
-      "advanced": true
-     }
-    ],
-    "end_percent": [
-     "FLOAT",
-     {
-      "default": 1.0,
-      "min": 0.0,
-      "max": 1.0,
-      "step": 0.001,
       "advanced": true
      }
     ]
@@ -559,6 +457,66 @@
   ],
   "output_name": [
    "MODEL"
+  ]
+ },
+ "VAEDecode": {
+  "input": {
+   "required": {
+    "samples": [
+     "LATENT",
+     {
+      "tooltip": "The latent to be decoded."
+     }
+    ],
+    "vae": [
+     "VAE",
+     {
+      "tooltip": "The VAE model used for decoding the latent."
+     }
+    ]
+   }
+  },
+  "output": [
+   "IMAGE"
+  ],
+  "output_name": [
+   "IMAGE"
+  ]
+ },
+ "VAEEncode": {
+  "input": {
+   "required": {
+    "pixels": [
+     "IMAGE"
+    ],
+    "vae": [
+     "VAE"
+    ]
+   }
+  },
+  "output": [
+   "LATENT"
+  ],
+  "output_name": [
+   "LATENT"
+  ]
+ },
+ "VAELoader": {
+  "input": {
+   "required": {
+    "vae_name": [
+     [
+      "qwen_image_2.1_vae_bf16.safetensors",
+      "pixel_space"
+     ]
+    ]
+   }
+  },
+  "output": [
+   "VAE"
+  ],
+  "output_name": [
+   "VAE"
   ]
  }
 }

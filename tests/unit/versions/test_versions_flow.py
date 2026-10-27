@@ -79,10 +79,10 @@ async def test_checks_after_a_failed_one_do_not_run(tmp_path) -> None:
 
 
 async def test_a_failed_check_is_reported_as_it_happens(tmp_path) -> None:
-    checks = scripted_checks(nodes={0: CheckFailed("蒙版改写：缺少节点 ZImageFunControlnet")})
+    checks = scripted_checks(nodes={0: CheckFailed("蒙版改写：缺少节点 SetLatentNoiseMask")})
     flow, _, _, reported = manager(tmp_path, checks)
     await flow.upgrade("v0.42.5")
-    assert "  没过：蒙版改写：缺少节点 ZImageFunControlnet" in reported
+    assert "  没过：蒙版改写：缺少节点 SetLatentNoiseMask" in reported
     assert checks[2].runs == 1  # routes ran only in the re-check
 
 

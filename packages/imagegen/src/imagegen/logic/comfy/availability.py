@@ -16,7 +16,6 @@ LOADER_FILES: dict[str, tuple[str, str, str]] = {
     "UNETLoader": ("unet_name", "models/diffusion_models", "底模"),
     "CLIPLoader": ("clip_name", "models/text_encoders", "文本编码器"),
     "VAELoader": ("vae_name", "models/vae", "VAE"),
-    "ModelPatchLoader": ("name", "models/model_patches", "蒙版权重"),
 }
 
 _PROBE = {"prompt": "probe", "seed": 0, "size": Size(1024, 1024), "output_prefix": "probe"}

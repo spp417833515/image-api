@@ -75,7 +75,7 @@ def test_job_state_matches_its_steps() -> None:
 
 
 def test_an_unavailable_route_names_its_reason() -> None:
-    RouteState(available=False, reason="缺少蒙版权重 models/model_patches/x.safetensors")
+    RouteState(available=False, reason="缺少VAE models/vae/x.safetensors")
     for available, reason in ((False, None), (False, ""), (True, "why")):
         with pytest.raises(ValidationError):
             RouteState(available=available, reason=reason)

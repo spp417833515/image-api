@@ -76,7 +76,7 @@ class FakeBackend:
         self.online = False
 
     def lose_file(self, route: Route, path: str) -> None:
-        self.problems[route] = Unavailable(UnavailableCode.MISSING_FILE, f"缺少蒙版权重 {path}", path)
+        self.problems[route] = Unavailable(UnavailableCode.MISSING_FILE, f"缺少文件 {path}", path)
 
 
 def make_service(backend: FakeBackend, data_dir: Path) -> ImageGenService:

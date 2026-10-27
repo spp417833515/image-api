@@ -29,13 +29,17 @@ def assert_links_resolve(graph: graphs.Graph) -> None:
                 assert value[0] in graph, f"{node_id}.{key} links to missing node {value[0]}"
 
 
+def assert_starts_from_an_empty_latent(graph: graphs.Graph) -> None:
+    start = graph[graph[graphs.SAMPLER]["inputs"]["latent_image"][0]]
+    assert start == {"class_type": "EmptyLatentImage", "inputs": {"width": 960, "height": 544, "batch_size": 1}}
+
+
 def assert_common_tail(graph: graphs.Graph, model_from: str) -> None:
     sample = graph[graphs.SAMPLER]
     assert sample["class_type"] == "KSampler"
     assert sample["inputs"]["model"] == [model_from, 0]
     assert sample["inputs"]["positive"] == ["encode", 0]
     assert sample["inputs"]["negative"] == ["encode", 1]
-    assert graph[sample["inputs"]["latent_image"][0]]["inputs"] == {"width": 960, "height": 544, "batch_size": 1}
     assert {k: sample["inputs"][k] for k in ("seed", "steps", "cfg", "sampler_name", "scheduler", "denoise")} == {
         "seed": 9,
         "steps": 25,
@@ -64,9 +68,11 @@ def test_text_to_image() -> None:
         "device": "default",
     }
     assert graph["vae"]["inputs"]["vae_name"] == "qwen_image_2.1_vae_bf16.safetensors"
-    assert not nodes_of(graph, "LoadImage") and not nodes_of(graph, "ModelPatchLoader")
+    for absent in ("LoadImage", "LoadImageMask", "VAEEncode", "SetLatentNoiseMask"):
+        assert not nodes_of(graph, absent), absent
     assert not [k for k in graph["encode"]["inputs"] if k.startswith("images.")]
     assert graph["encode"]["inputs"]["prompt"] == "p" and graph["encode"]["inputs"]["negative_prompt"] == ""
+    assert_starts_from_an_empty_latent(graph)
     assert_common_tail(graph, model_from="unet")
 
 
@@ -78,36 +84,40 @@ def test_reference_edit_feeds_every_image_to_the_encoder_in_order() -> None:
     assert [graph[link[0]]["inputs"]["image"] for link in slots.values()] == ["a.png", "b.png", "c.png"]
     assert all(graph[link[0]]["class_type"] == "LoadImage" for link in slots.values())
     assert encode["resolution"] == 0  # images arrive pre-sized; image_1 must stay the latent's size
+    assert_starts_from_an_empty_latent(graph)
     assert_common_tail(graph, model_from="unet")
 
 
-def test_mask_rewrite_uses_zimage_fun_controlnet_with_inpaint_image() -> None:
+def test_mask_rewrite_samples_from_the_base_latent_under_the_mask() -> None:
     graph = build(Route.MASK, images=("base.png", "ref.png"), mask="mask.png")
-    assert not nodes_of(graph, "QwenImageDiffsynthControlnet")
-    (control_id, control), *_ = nodes_of(graph, "ZImageFunControlnet").items()
-    inputs = control["inputs"]
-    assert inputs["model"] == ["unet", 0]
-    assert graph[inputs["model_patch"][0]]["inputs"] == {
-        "name": "qwen_image_2.1_fun_controlnet_union_int8_convrot.safetensors"
-    }
-    assert inputs["vae"] == ["vae", 0] and inputs["strength"] == 1.0
-    assert graph[inputs["inpaint_image"][0]] == {"class_type": "LoadImage", "inputs": {"image": "base.png"}}
-    assert graph[inputs["mask"][0]] == {
+    for gone in ("ModelPatchLoader", "ZImageFunControlnet", "QwenImageDiffsynthControlnet", "EmptyLatentImage"):
+        assert not nodes_of(graph, gone), gone
+    sample = graph[graphs.SAMPLER]["inputs"]
+    noise_mask = graph[sample["latent_image"][0]]
+    assert sample["latent_image"][1] == 0 and noise_mask["class_type"] == "SetLatentNoiseMask"
+    start = graph[noise_mask["inputs"]["samples"][0]]
+    assert noise_mask["inputs"]["samples"][1] == 0 and start["class_type"] == "VAEEncode"
+    assert start["inputs"]["vae"] == ["vae", 0]
+    assert start["inputs"]["pixels"][1] == 0
+    assert graph[start["inputs"]["pixels"][0]] == {"class_type": "LoadImage", "inputs": {"image": "base.png"}}
+    assert noise_mask["inputs"]["mask"][1] == 0
+    assert graph[noise_mask["inputs"]["mask"][0]] == {
         "class_type": "LoadImageMask",
         "inputs": {"image": "mask.png", "channel": "red"},
     }
     encode = graph["encode"]["inputs"]
-    assert encode["images.image_1"] == inputs["inpaint_image"]  # the base is also the encoder's image_1
+    assert encode["images.image_1"] == start["inputs"]["pixels"]  # the base is also the encoder's image_1
     assert graph[encode["images.image_2"][0]]["inputs"]["image"] == "ref.png"
     assert "images.image_3" not in encode
-    assert_common_tail(graph, model_from=control_id)
+    assert_common_tail(graph, model_from="unet")
 
 
 def test_model_files_and_sampling_come_from_config() -> None:
-    config = ComfyConfig(unet="u.safetensors", model_patch="p.safetensors", steps=30, sampler="dpmpp_2m")
+    config = ComfyConfig(unet="u.safetensors", vae="v.safetensors", steps=30, sampler="dpmpp_2m", mask_channel="green")
     graph = build(Route.MASK, images=("base.png",), mask="m.png", config=config)
     assert graph["unet"]["inputs"]["unet_name"] == "u.safetensors"
-    assert graph["patch"]["inputs"]["name"] == "p.safetensors"
+    assert graph["vae"]["inputs"]["vae_name"] == "v.safetensors"
+    assert nodes_of(graph, "LoadImageMask")["load_mask"]["inputs"]["channel"] == "green"
     assert graph[graphs.SAMPLER]["inputs"]["steps"] == 30
     assert graph[graphs.SAMPLER]["inputs"]["sampler_name"] == "dpmpp_2m"
 
