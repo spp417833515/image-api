@@ -41,6 +41,7 @@
   --head-h:44px; --foot-h:56px; --tile-h:72px; --tile-h-empty:46px; --btn-h:30px; --gen-h:52px; --stage-pad:28px;
   --fault-w:560px;
   --pop-indent:22px;   /* 浮层里路由不可用原因的缩进：对齐到勾叉图标（14px）+ 间距（8px）之后 */
+  --pop-note-h:120px;  /* 浮层里检查没过的原文、最近一次操作的说明（ComfyUI 日志尾部等）最多这么高，超出在框内滚动 */
   --mask-alpha:.55;
   /* ---------- 导出的蒙版 PNG：白 = 重画，黑 = 不动（数据值，不是界面色） ---------- */
   --mask-on:#fff; --mask-off:#000;

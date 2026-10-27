@@ -18,7 +18,7 @@ from ..logic.types import Route
 from .models import ImageSize, UnavailableReason
 from .routing import ROUTE_NAMES, Limits
 from .status_models import LimitsInfo, RoutesState, RouteState, SizePreset, StatusResponse
-from .version_state import Upgrading, Version, VersionState
+from .version_state import RECOVER_COMMAND, Interrupted, Upgrading, Version, VersionState
 
 MAX_AGE_S = 5.0
 
@@ -83,15 +83,10 @@ class Availability:
         self._fetched_at = float("-inf")
         self._start_fetch()
 
-    def problems(self, snapshot: Snapshot, upgrading: Upgrading | None) -> dict[Route, RouteProblem | None]:
-        """Per route the backend supports: None when it can run now."""
-        if upgrading is not None:
-            problem = RouteProblem(
-                UnavailableReason.UPGRADING,
-                f"ComfyUI 正在升级到 {upgrading.target}，升级完再生成",
-                f"upgrading to {upgrading.target} since {upgrading.since.isoformat()}",
-            )
-            return dict.fromkeys(self._limits.routes, problem)
+    def problems(self, snapshot: Snapshot, block: Upgrading | Interrupted | None) -> dict[Route, RouteProblem | None]:
+        """Per route the backend supports: None when it can run now. block: VersionState.generation_block()."""
+        if block is not None:
+            return dict.fromkeys(self._limits.routes, _blocked(block))
         found: dict[Route, RouteProblem | None] = {}
         for route in self._limits.routes:
             if route not in snapshot.backend.routes:
@@ -107,8 +102,8 @@ class Availability:
 
     async def status(self) -> StatusResponse:
         snapshot = await self.current()
-        upgrading = self._state.upgrading()
-        problems = self.problems(snapshot, upgrading)
+        block = self._state.generation_block()
+        problems = self.problems(snapshot, block)
         limits = self._limits
 
         def state(route: Route) -> RouteState:
@@ -121,7 +116,7 @@ class Availability:
             backend=snapshot.backend.backend,
             host=snapshot.backend.host,
             online=snapshot.backend.online,
-            upgrading=upgrading,
+            upgrading=block if isinstance(block, Upgrading) else None,
             version=snapshot.version,
             last_check=self._state.last_check(),
             last_operation=self._state.last_operation(),
@@ -156,3 +151,21 @@ class Availability:
         # Retrieved here so a refresh nobody awaited (planning's background one) is still reported.
         if not task.cancelled() and (error := task.exception()) is not None:
             logger.error("reading the backend status / installed version failed", exc_info=error)
+
+
+def _blocked(block: Upgrading | Interrupted) -> RouteProblem:
+    match block:
+        case Upgrading(target=target, since=since):
+            return RouteProblem(
+                UnavailableReason.UPGRADING,
+                f"ComfyUI 正在升级到 {target}，升级完再生成",
+                f"upgrading to {target} since {since.isoformat()}",
+            )
+        case Interrupted(target=target, since=since, pid=pid):
+            started = since.astimezone().strftime("%Y-%m-%d %H:%M")
+            return RouteProblem(
+                UnavailableReason.UPGRADING,
+                f"上次升级到 {target} 中断了（{started} 开始），ComfyUI 停在未检查的状态：运行 {RECOVER_COMMAND} 恢复",
+                f"the upgrade to {target} since {since.isoformat()} was interrupted (process {pid} is gone); "
+                f"run `{RECOVER_COMMAND}`",
+            )

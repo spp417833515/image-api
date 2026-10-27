@@ -2,7 +2,8 @@
 
 Steps run in order; "$prev" is the previous step's output. The first failure stops the job: that step is failed with
 the backend's original text, later steps are skipped, earlier images stay. Each finished image is stored (and so is in
-the history) before its step is reported done. A step does not start while a ComfyUI upgrade is running. Jobs live in
+the history) before its step is reported done. A mask step's result is the original with only the white area
+repainted (masking.paste_back). A step does not start while a ComfyUI upgrade is running. Jobs live in
 memory: a restart forgets them (their images remain).
 """
 
@@ -20,10 +21,10 @@ from ..logic import imaging
 from ..logic.backend import BackendUnavailable, CleanupFailed, ImageBackend, StepFailed, UnexpectedResponse
 from ..logic.storage import ImageKind, ImageMeta, ImageStore
 from ..logic.types import Route, Size, StepInput
+from .masking import binarized_mask, paste_back
 from .models import Job, JobImage, JobState, JobStep, StepError, StepState
-from .planner import binarized_mask
 from .routing import PREV, Limits
-from .version_state import VersionState
+from .version_state import RECOVER_COMMAND, Interrupted, Upgrading, VersionState
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +79,7 @@ class JobRunner:
         version_state: VersionState,
         on_unavailable: Callable[[], None],
     ) -> None:
-        """version_state: read before every step, so no step starts during an upgrade.
+        """version_state: read before every step, so no step starts during an upgrade or after an interrupted one.
         on_unavailable: called when the backend turns out to be unavailable mid-job (to refresh the status)."""
         self._backend = backend
         self._store = store
@@ -167,8 +168,8 @@ class JobRunner:
                 continue
             run.state, run.progress = StepState.RUNNING, 0.0
             try:
-                if (upgrading := self._version_state.upgrading()) is not None:
-                    raise _NotRun(f"ComfyUI 正在升级（目标 {upgrading.target}），这一步没有运行")
+                if (block := self._version_state.generation_block()) is not None:
+                    raise _NotRun(_not_run_because(block))
                 previous = await self._run_step(job, run.plan, previous, _progress_setter(run))
             except Exception as exc:
                 run.state, run.progress, run.error = StepState.FAILED, None, self._raw_error(job, run.plan, exc)
@@ -198,19 +199,24 @@ class JobRunner:
             size = self._limits.edit_size(Size(metas[0].width, metas[0].height))
         mask = None
         if (mask_id := step.mask) is not None:
-            mask = await asyncio.to_thread(lambda: imaging.to_png(binarized_mask(self._store, mask_id)))
+            mask = await asyncio.to_thread(binarized_mask, self._store, mask_id)
+        mask_png = None if mask is None else await asyncio.to_thread(imaging.to_png, mask)
         images = tuple(self._store.path(meta.id) for meta in metas)
         try:
             output = await self._backend.run(
-                StepInput(step.route, step.instruction, images, mask, step.seed, size), on_progress
+                StepInput(step.route, step.instruction, images, mask_png, step.seed, size), on_progress
             )
         except CleanupFailed as exc:
             # The image is good; only the backend's temporary files stayed behind. Keep the image, report the leftovers.
             logger.error("job %s step %s: %s", job.id, step.number, exc)
             output = exc.output
+        png = output.png
+        if step.route is Route.MASK:
+            assert mask is not None  # the planner rejects a mask step without a mask
+            png = await asyncio.to_thread(paste_back, images[0], mask, output.png)
         return await asyncio.to_thread(
             self._store.save,
-            output.png,
+            png,
             kind=ImageKind.OUTPUT,
             route=step.route,
             seed=output.seed,
@@ -239,6 +245,14 @@ class JobRunner:
                 logger.error("job %s step %s failed unexpectedly", job.id, step.number, exc_info=exc)
                 raw = f"内部错误 {type(exc).__name__}: {exc}"
         return "\n".join([raw or f"{type(exc).__name__}（没有错误原文）", *getattr(exc, "__notes__", ())])
+
+
+def _not_run_because(block: Upgrading | Interrupted) -> str:
+    match block:
+        case Upgrading(target=target):
+            return f"ComfyUI 正在升级（目标 {target}），这一步没有运行"
+        case Interrupted(target=target):
+            return f"上次升级到 {target} 中断了，这一步没有运行：运行 {RECOVER_COMMAND} 恢复"
 
 
 def _progress_setter(run: _StepRun) -> Callable[[float], None]:

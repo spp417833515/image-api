@@ -8,13 +8,14 @@ import time
 from pathlib import Path
 
 import pytest
+from imagegen.biz.version_checks import mask_drift
 from imagegen.logic import imaging
 from imagegen.logic.backend import BackendUnavailable, StepFailed, UnavailableCode
 from imagegen.logic.comfy.backend import ComfyBackend
 from imagegen.logic.comfy.client import ComfyClient
 from imagegen.logic.comfy.config import ComfyConfig
 from imagegen.logic.types import Route, Size, StepInput
-from PIL import Image, ImageChops, ImageDraw, ImageStat
+from PIL import Image, ImageDraw, ImageStat
 from thresholds import MAX_OUTSIDE_DRIFT, MIN_INSIDE_CHANGE  # sibling module in tests/live
 
 pytestmark = pytest.mark.live
@@ -78,10 +79,8 @@ async def run_mask_step(base_path: Path, mask: Image.Image, instruction: str, se
 
 
 def drift(base: Image.Image, result: Image.Image, mask: Image.Image, label: str) -> tuple[float, float]:
-    """Mean |difference| inside and outside the white area of mask."""
-    diff = ImageChops.difference(base, result).convert("L")
-    inside = ImageStat.Stat(diff, mask=mask).mean[0]
-    outside = ImageStat.Stat(diff, mask=mask.point(lambda v: 255 - v)).mean[0]
+    """Mean |difference| inside and outside the white area of mask, measured as the upgrade check measures it."""
+    inside, outside = mask_drift(base, result, mask)
     print(f"{label}: mean |diff| inside={inside:.2f} outside={outside:.2f} (0-255, limit outside {MAX_OUTSIDE_DRIFT})")
     return inside, outside
 

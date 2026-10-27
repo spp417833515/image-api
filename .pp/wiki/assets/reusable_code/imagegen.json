@@ -1,0 +1,58 @@
+{
+  "name": "imagegen",
+  "kind": "module",
+  "sname": "生图核心包（只看输入项自动路由·多步接力·可插拔生图后端）",
+  "intro": "独立 Python 包（packages/imagegen，不依赖 FastAPI/页面）。给指令 + 0–4 张图 + 可选蒙版，按「图几张 × 有无蒙版」路由到文生图 / 参考图编辑 / 蒙版改写；多步用 $prev 接力，失败即停；规划只读本地信息不等后端；单 worker 串行跑 GPU。生图后端是 ImageBackend 协议（能力声明 / 状态 / 跑一步），内置 ComfyUI（Qwen-Image-2.1）实现；契约模型在 biz/models.py（唯一来源）。已在空 venv 里安装并真出图验证过（line 3 审查）。",
+  "tags": [
+    "生图",
+    "ComfyUI",
+    "Qwen-Image",
+    "路由",
+    "可复用"
+  ],
+  "body": {
+    "exports": [
+      {
+        "name": "imagegen.factory.create_service",
+        "type": "(data_dir: Path, comfy: ComfyConfig | None = None) -> ImageGenService",
+        "desc": "唯一组装点：把 ComfyUI 后端接进业务层"
+      },
+      {
+        "name": "imagegen.biz.service.ImageGenService",
+        "type": "class",
+        "desc": "async with service: upload_image(bytes) / plan(GenerateRequest) / generate(GenerateRequest) / job(id) / wait(id) / image_bytes(id) / image_meta(id) / history(limit, before) / status()"
+      },
+      {
+        "name": "imagegen.biz.models",
+        "type": "pydantic",
+        "desc": "GenerateRequest、PlanResponse、Job、HistoryPage、ErrorCode 等契约模型（唯一来源）"
+      },
+      {
+        "name": "imagegen.logic.backend.ImageBackend",
+        "type": "Protocol",
+        "desc": "接入其他生图 API 的扩展点：capabilities() / status() / run(step, on_progress)；异常 BackendUnavailable / StepFailed / UnexpectedResponse / CleanupFailed"
+      },
+      {
+        "name": "imagegen.logic.comfy.config.ComfyConfig",
+        "type": "dataclass",
+        "desc": "ComfyUI 地址、安装目录、模型文件名、采样参数的唯一来源"
+      },
+      {
+        "name": "imagegen.logic.imaging",
+        "type": "module",
+        "desc": "decode / scale_down / round_to_multiple / binarize_mask / is_all_black / to_png 等纯函数"
+      }
+    ],
+    "deps": [
+      "httpx",
+      "websockets",
+      "pillow",
+      "pydantic",
+      "本机 ComfyUI（127.0.0.1:8188，输入输出目录须在 ComfyConfig.root 下）"
+    ],
+    "usage": "from pathlib import Path\nfrom imagegen.factory import create_service\nfrom imagegen.biz.models import GenerateRequest\n\nasync with create_service(Path('data')) as svc:\n    job = await svc.generate(GenerateRequest.model_validate({'first_step': 1, 'steps': [{'instruction': '画一只坐在雪地里的赤狐', 'images': [], 'mask': None, 'seed': None, 'width': None, 'height': None}]}))\n    done = await svc.wait(job.job_id)\n    png = svc.image_bytes(done.steps[0].image.id)\n# 在别的项目里：uv add --editable /home/spp/桌面/image-api/packages/imagegen"
+  },
+  "task_id": "",
+  "created_at": "2026-10-26T21:42:44.151898+00:00",
+  "updated_at": "2026-10-26T21:42:44.151898+00:00"
+}

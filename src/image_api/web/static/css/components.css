@@ -27,10 +27,10 @@ button.status:hover,button.status.open{border-color:var(--line-2);background:var
 .pop-checks .ok .ic{color:var(--ok)}
 .pop-checks .no .ic{color:var(--danger)}
 .pop-checks .wait{color:var(--text-3)}
-.pop-checks em{font-style:normal;color:var(--text-3);font-size:var(--fs-xs)}
+.pop-checks em{font-style:normal;color:var(--text-3);font-size:var(--fs-xs);flex:1 1 0;min-width:0;max-height:var(--pop-note-h);overflow-y:auto;white-space:pre-wrap;word-break:break-all}
 .pop-routes{flex-direction:row;flex-wrap:wrap;column-gap:var(--sp-3)}
 .pop-why{flex-basis:100%;padding-left:var(--pop-indent);font-family:var(--mono);font-size:var(--fs-2xs);line-height:1.5;color:var(--text-3);word-break:break-all}
-.pop-op{color:var(--text);line-height:1.5}
+.pop-op{color:var(--text);line-height:1.5;max-height:var(--pop-note-h);overflow-y:auto;white-space:pre-wrap;overflow-wrap:anywhere}
 .pop-raw{font-family:var(--mono);font-size:var(--fs-2xs);line-height:1.5;color:var(--text-3);word-break:break-all}
 .pop-cli{border-top:1px solid var(--line);padding-top:var(--sp-3);font-size:var(--fs-xs);color:var(--text-3);line-height:1.8}
 .pop-cli code{font-family:var(--mono);color:var(--text-2);white-space:nowrap}

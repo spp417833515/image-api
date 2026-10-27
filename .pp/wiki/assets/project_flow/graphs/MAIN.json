@@ -1,0 +1,146 @@
+{
+  "schema_version": 2,
+  "id": "MAIN",
+  "parent": null,
+  "wiki": [],
+  "nodes": [
+    {
+      "id": "ui_page",
+      "label": "页面（模板 A 工作台）",
+      "layer": "ui",
+      "desc": "src/image_api/web/static/：步骤卡、大画布、蒙版画板、历史、只读版本浮层；只有 api.js 发请求，shapes.js 校验响应"
+    },
+    {
+      "id": "ui_http",
+      "label": "HTTP 接口",
+      "layer": "ui",
+      "desc": "src/image_api/web/：/api/images、/api/plan、/api/generate、/api/jobs、/api/history、/api/status；错误体统一 {code,message,raw}"
+    },
+    {
+      "id": "ui_cli",
+      "label": "命令行",
+      "layer": "ui",
+      "desc": "src/image_api/cli.py：image-api serve；comfy versions/upgrade/rollback（线 4）"
+    },
+    {
+      "id": "biz_service",
+      "label": "ImageGenService 门面",
+      "layer": "biz",
+      "desc": "biz/service.py；其他项目与网页层的唯一入口；factory.create_service 组装"
+    },
+    {
+      "id": "biz_plan",
+      "label": "路由与规划",
+      "layer": "biz",
+      "desc": "biz/routing.py（路由表+限制唯一一份）、planner.py（各 reject.code、$prev、出图尺寸）"
+    },
+    {
+      "id": "biz_jobs",
+      "label": "逐步执行",
+      "layer": "biz",
+      "desc": "biz/jobs.py：单 worker 串行、$prev 接力、失败即停、每步前查升级"
+    },
+    {
+      "id": "biz_status",
+      "label": "可用性与版本状态",
+      "layer": "biz",
+      "desc": "biz/availability.py（/api/status 缓存 5s）、version_state.py（data/comfy/* 唯一主人）"
+    },
+    {
+      "id": "biz_versions",
+      "label": "ComfyUI 版本管理",
+      "layer": "biz",
+      "desc": "biz/versions.py（线 4）：升级/回滚、检查不过自动退回"
+    },
+    {
+      "id": "logic_backend",
+      "label": "生图后端接口",
+      "layer": "logic",
+      "desc": "logic/backend.py：ImageBackend 协议 + 异常语义；接入其他生图 API 的扩展点"
+    },
+    {
+      "id": "logic_comfy",
+      "label": "ComfyUI 后端",
+      "layer": "logic",
+      "desc": "logic/comfy/：config、client、graphs（三张工作流）、availability、prompt（取消）、files（清理）、version（读 git）、install（线 4）"
+    },
+    {
+      "id": "logic_image",
+      "label": "图片处理与存储",
+      "layer": "logic",
+      "desc": "logic/imaging.py（缩小、取整 32、蒙版检查）、storage.py（ImageStore）"
+    }
+  ],
+  "edges": [
+    {
+      "from": "ui_page",
+      "to": "ui_http",
+      "label": "fetch"
+    },
+    {
+      "from": "ui_http",
+      "to": "biz_service"
+    },
+    {
+      "from": "ui_cli",
+      "to": "biz_service",
+      "label": "serve"
+    },
+    {
+      "from": "ui_cli",
+      "to": "biz_versions",
+      "label": "comfy 子命令"
+    },
+    {
+      "from": "biz_service",
+      "to": "biz_plan"
+    },
+    {
+      "from": "biz_service",
+      "to": "biz_jobs"
+    },
+    {
+      "from": "biz_service",
+      "to": "biz_status"
+    },
+    {
+      "from": "biz_jobs",
+      "to": "logic_backend",
+      "label": "run"
+    },
+    {
+      "from": "biz_plan",
+      "to": "logic_image"
+    },
+    {
+      "from": "biz_jobs",
+      "to": "logic_image",
+      "label": "存图"
+    },
+    {
+      "from": "biz_status",
+      "to": "logic_backend",
+      "label": "status"
+    },
+    {
+      "from": "biz_versions",
+      "to": "logic_comfy",
+      "label": "install"
+    },
+    {
+      "from": "biz_versions",
+      "to": "biz_status",
+      "label": "写版本状态"
+    },
+    {
+      "from": "logic_comfy",
+      "to": "logic_backend",
+      "label": "实现"
+    },
+    {
+      "from": "logic_comfy",
+      "to": "logic_image"
+    }
+  ],
+  "updated": "2026-10-26T21:43:10.725425+00:00"
+}

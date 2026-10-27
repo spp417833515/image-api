@@ -11,14 +11,13 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from functools import lru_cache
 
-from PIL import Image
-
 from ..logic import imaging
 from ..logic.storage import ImageNotFound, ImageStore
 from ..logic.types import Route, Size
 from .availability import RouteProblem
+from .masking import binarized_mask
 from .models import GenerateRequest, ImageSize, PlanResponse, PlanStep, Reject, RejectCode, StepRequest, UnavailableInfo
-from .routing import MASK_THRESHOLD, MAX_IMAGES, PREV, ROUTE_NAMES, Limits, route_for
+from .routing import MAX_IMAGES, PREV, ROUTE_NAMES, Limits, route_for
 
 _MASK_CACHE = 256  # masks are immutable once stored, so their facts are cached by id
 
@@ -162,11 +161,6 @@ class Planner:
     def _inspect_mask(self, image_id: str) -> tuple[Size, bool]:
         mask = binarized_mask(self._store, image_id)
         return imaging.size_of(mask), imaging.is_all_black(mask)
-
-
-def binarized_mask(store: ImageStore, image_id: str) -> Image.Image:
-    """The stored mask as the backend gets it: white (luminance ≥ MASK_THRESHOLD) = repaint."""
-    return imaging.binarize_mask(imaging.decode(store.path(image_id)), MASK_THRESHOLD)
 
 
 def _shown(size: Size) -> str:

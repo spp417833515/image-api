@@ -109,7 +109,7 @@ class ImageGenService:
     async def plan(self, request: GenerateRequest) -> PlanResponse:
         """Route, output size or reject per step, and availability. Never waits on the backend (cached status)."""
         snapshot = await self._availability.cached()
-        problems = self._availability.problems(snapshot, self.version_state.upgrading())
+        problems = self._availability.problems(snapshot, self.version_state.generation_block())
         return plan_response(await asyncio.to_thread(self._planner.plan, request, problems))
 
     async def generate(self, request: GenerateRequest) -> GenerateAccepted:
@@ -118,9 +118,9 @@ class ImageGenService:
         show it at once)."""
         if not self._jobs.started:
             raise RuntimeError("the service is not started: use `async with service:` or `await service.start()`")
-        upgrading = self.version_state.upgrading()
-        snapshot = await (self._availability.cached() if upgrading else self._availability.refresh())
-        plans = await asyncio.to_thread(self._planner.plan, request, self._availability.problems(snapshot, upgrading))
+        block = self.version_state.generation_block()
+        snapshot = await (self._availability.cached() if block else self._availability.refresh())
+        plans = await asyncio.to_thread(self._planner.plan, request, self._availability.problems(snapshot, block))
         if any(p.reject is not None for p in plans):
             raise Rejected(plan_response(plans))
         blocked = next((p.unavailable for p in plans if p.unavailable is not None), None)

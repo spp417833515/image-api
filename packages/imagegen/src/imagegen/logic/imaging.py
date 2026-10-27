@@ -7,7 +7,7 @@ import math
 from collections.abc import Collection
 from pathlib import Path
 
-from PIL import Image, ImageOps
+from PIL import Image, ImageFilter, ImageOps
 
 from .types import ImageRef, Size
 
@@ -120,6 +120,27 @@ def resize_mask(mask: Image.Image, size: Size) -> Image.Image:
     if mask.size == (size.width, size.height):
         return mask
     return mask.resize((size.width, size.height), Image.Resampling.NEAREST)
+
+
+def composite_masked(base: Image.Image, generated: Image.Image, mask: Image.Image, feather_px: int) -> Image.Image:
+    """generated in the white area of mask, base everywhere else, with a feathered edge. RGB.
+
+    The whole white area is generated, unchanged. Outside it, generated fades out linearly over the feather_px pixels
+    nearest the white area (Chebyshev distance); farther away the result is base, unchanged. feather_px is even
+    (the fade is a box blur of radius feather_px / 2); 0 gives a hard edge.
+    base, generated and mask are the same size; mask is binarised (see binarize_mask).
+    """
+    if feather_px < 0 or feather_px % 2:
+        raise ValueError(f"feather_px must be an even number ≥ 0, got {feather_px}")
+    if not base.size == generated.size == mask.size:
+        raise ValueError(f"expected one size, got base {base.size}, generated {generated.size}, mask {mask.size}")
+    require_binary_mask(mask)
+    alpha = mask.convert("L")
+    if radius := feather_px // 2:
+        # Grow the white area by the radius, then box-blur by it: the blur never reaches back into the white area
+        # (it stays 255) and falls to exactly 0 at distance feather_px outside it, in steps of 1/(feather_px + 1).
+        alpha = alpha.filter(ImageFilter.MaxFilter(2 * radius + 1)).filter(ImageFilter.BoxBlur(radius))
+    return Image.composite(generated.convert("RGB"), base.convert("RGB"), alpha)
 
 
 def to_png(image: Image.Image) -> bytes:

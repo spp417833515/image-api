@@ -18,9 +18,13 @@ from pathlib import Path
 import httpx
 import pytest
 import uvicorn
+from imagegen.biz.routing import MASK_FEATHER_PX, MASK_THRESHOLD, PASTE_BACKGROUND
+from imagegen.biz.version_checks import mask_drift
 from imagegen.factory import create_service
+from imagegen.logic import imaging
 from imagegen.logic.comfy.config import ComfyConfig
-from PIL import Image, ImageChops, ImageDraw, ImageStat
+from imagegen.logic.types import Size
+from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageOps, ImageStat
 from thresholds import MAX_OUTSIDE_DRIFT, MIN_INSIDE_CHANGE  # sibling module in tests/live
 
 from image_api.web.app import create_app
@@ -154,31 +158,87 @@ def test_one_reference_image_is_ref_and_follows_its_size(api) -> None:
     assert done_image(api, job["steps"][0]).size == (960, 544)
 
 
-def test_image_with_white_mask_is_mask_and_keeps_the_rest(api) -> None:
-    fox = upload(api, (ASSETS / "fox.jpg").read_bytes(), "fox.jpg")
-    mask = upload(api, (ASSETS / "fox-mask.png").read_bytes(), "fox-mask.png")
-    request = {
-        "steps": [
-            {
-                "instruction": "A white arctic fox sitting in fresh snow.",
-                "images": [fox["id"]],
-                "mask": mask["id"],
-                "seed": 7,
-            }
-        ]
-    }
+def drawn_mask(size: tuple[int, int], shape: str, box: tuple[int, int, int, int]) -> bytes:
+    mask = Image.new("L", size, 0)
+    getattr(ImageDraw.Draw(mask), shape)(box, fill=255)
+    out = io.BytesIO()
+    mask.save(out, format="PNG")
+    return out.getvalue()
+
+
+def solid_colour() -> tuple[bytes, bytes]:
+    """A solid-colour picture (where the backend's colour shift outside the mask is largest) and a mask on it."""
+    out = io.BytesIO()
+    Image.new("RGB", (768, 512), (70, 130, 180)).save(out, format="PNG")
+    return out.getvalue(), drawn_mask((768, 512), "ellipse", (256, 128, 511, 383))
+
+
+MASK_CASES = {
+    "photo": (
+        lambda: ((ASSETS / "fox.jpg").read_bytes(), (ASSETS / "fox-mask.png").read_bytes()),
+        "A white arctic fox sitting in fresh snow.",
+    ),
+    "line-art": (
+        lambda: ((ASSETS / "sheet.jpg").read_bytes(), drawn_mask((960, 540), "rectangle", (75, 85, 255, 430))),
+        "把长袍改成深红色",
+    ),
+    "solid": (solid_colour, "A red apple."),
+}
+
+
+@pytest.mark.parametrize("case", list(MASK_CASES))
+def test_mask_route_repaints_only_the_white_area(api, tmp_path, case) -> None:
+    make_inputs, instruction = MASK_CASES[case]
+    base_bytes, mask_bytes = make_inputs()
+    base = upload(api, base_bytes, f"{case}-base")
+    mask = upload(api, mask_bytes, f"{case}-mask")
+    request = {"steps": [{"instruction": instruction, "images": [base["id"]], "mask": mask["id"], "seed": 7}]}
     assert plan(api, request)["steps"][0]["route"] == "mask"
     job = run_job(api, request)
     assert job["state"] == "done", job
     result = done_image(api, job["steps"][0])
-    base = fetch(api, fox["url"]).resize(result.size, Image.Resampling.LANCZOS)
-    white = fetch(api, mask["url"]).convert("L").point(lambda v: 255 if v >= 128 else 0).resize(result.size)
-    diff = ImageChops.difference(base, result).convert("L")
-    outside = ImageStat.Stat(diff, mask=white.point(lambda v: 255 - v)).mean[0]
-    inside = ImageStat.Stat(diff, mask=white).mean[0]
-    print(f"mask route via HTTP: mean |diff| inside={inside:.2f} outside={outside:.2f} (limit {MAX_OUTSIDE_DRIFT})")
+    size = Size(*result.size)
+    # The original and the mask at the output size, the way the service brings them there.
+    stored_base, stored_mask = (imaging.decode(api.get(image["url"]).content) for image in (base, mask))
+    original = imaging.resize(imaging.flatten(stored_base, PASTE_BACKGROUND), size)
+    white = imaging.resize_mask(imaging.binarize_mask(stored_mask, MASK_THRESHOLD), size)
+    reach = white.filter(ImageFilter.MaxFilter(2 * MASK_FEATHER_PX + 1))
+    beyond = ImageOps.invert(reach)
+    changed_beyond = ImageStat.Stat(ImageChops.difference(original, result), mask=beyond)
+    largest = max(high for _, high in changed_beyond.extrema)
+    inside, outside = mask_drift(original, result, white)
+    save_comparison(tmp_path / "pasteback", case, original, result, white)
+    print(
+        f"{case}: beyond the {MASK_FEATHER_PX} px band max |diff|={largest} over {changed_beyond.count[0]} px; "
+        f"mean inside={inside:.2f} outside={outside:.2f}; images in {tmp_path / 'pasteback'}"
+    )
+    assert changed_beyond.count[0] > 0 and largest == 0  # outside the white area and the band: the original exactly
+    assert inside >= MIN_INSIDE_CHANGE  # the white area really changed
     assert outside <= MAX_OUTSIDE_DRIFT
-    assert inside >= MIN_INSIDE_CHANGE
+
+
+def save_comparison(directory: Path, case: str, original: Image.Image, result: Image.Image, white: Image.Image) -> None:
+    """For a person to look at: original | result | difference ×8, and both edges of the mask zoomed in ×4."""
+    directory.mkdir(parents=True, exist_ok=True)
+    diff = ImageChops.difference(original, result).point(lambda v: min(255, v * 8))
+    width, height = result.size
+    sheet = Image.new("RGB", (width * 3, height))
+    for column, image in enumerate((original, result, diff)):
+        sheet.paste(image, (column * width, 0))
+    sheet.save(directory / f"{case}-original-result-diff.png")
+    left, top, right, bottom = white.getbbox()
+    middle = (top + bottom) // 2
+    crops = []
+    for x in (left, right):  # the mask's left and right edges, 64 px either side
+        box = (max(0, x - 64), max(0, middle - 64), min(width, x + 64), min(height, middle + 64))
+        pair = Image.new("RGB", ((box[2] - box[0]) * 2, box[3] - box[1]))
+        pair.paste(original.crop(box), (0, 0))
+        pair.paste(result.crop(box), (box[2] - box[0], 0))
+        crops.append(pair.resize((pair.width * 4, pair.height * 4), Image.Resampling.NEAREST))
+    edges = Image.new("RGB", (max(c.width for c in crops), sum(c.height for c in crops)))
+    for row, crop in enumerate(crops):
+        edges.paste(crop, (0, sum(c.height for c in crops[:row])))
+    edges.save(directory / f"{case}-edges-x4.png")
 
 
 # ---------------------------------------------------------------- several steps

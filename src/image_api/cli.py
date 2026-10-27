@@ -6,12 +6,12 @@ import argparse
 import logging
 import sys
 from collections.abc import Callable, Sequence
-from pathlib import Path
 
 import uvicorn
 from imagegen.factory import create_service
 
-from .config import Settings
+from . import cli_comfy
+from .config import Settings, data_dir_arg
 from .web.app import create_app
 
 type Subparsers = argparse._SubParsersAction[argparse.ArgumentParser]
@@ -22,7 +22,9 @@ def register_serve(commands: Subparsers) -> None:
     serve = commands.add_parser("serve", help="启动页面和 HTTP 接口")
     serve.add_argument("--host", default=settings.host, help=f"监听地址（默认 {settings.host}）")
     serve.add_argument("--port", type=int, default=settings.port, help=f"端口（默认 {settings.port}）")
-    serve.add_argument("--data-dir", type=Path, default=settings.data_dir, help=f"数据目录（默认 {settings.data_dir}）")
+    serve.add_argument(
+        "--data-dir", type=data_dir_arg, default=settings.data_dir, help=f"数据目录（默认 {settings.data_dir}）"
+    )
     serve.set_defaults(run=run_serve)
 
 
@@ -37,7 +39,7 @@ def run_serve(args: argparse.Namespace) -> int:
 # The registration point. Each entry adds its subcommand(s) to `image-api`: it calls commands.add_parser(...) and
 # sets run(args) -> exit code as a parser default. A group of subcommands lives in its own module (e.g. cli_comfy.py
 # with register(commands)) and is added here as one more entry, plus its import above.
-SUBCOMMANDS: tuple[Callable[[Subparsers], None], ...] = (register_serve,)
+SUBCOMMANDS: tuple[Callable[[Subparsers], None], ...] = (register_serve, cli_comfy.register)
 
 
 def build_parser() -> argparse.ArgumentParser:

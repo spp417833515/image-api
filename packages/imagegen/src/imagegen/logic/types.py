@@ -47,7 +47,8 @@ class StepInput:
     """Everything a backend needs to run one step. The caller has already chosen the route and the output size.
 
     images: t2i → none; ref → the canvas first, then references; mask → the base image first, then references.
-    mask:   mask route only; white = repaint, same size as images[0] (the caller binarises and checks it).
+    mask:   mask route only; white = repaint, same size as images[0] (the caller binarises and checks it). A backend
+            may change pixels outside the white area too; the caller pastes the original back there afterwards.
     size:   the output size; for ref / mask it is images[0]'s size after the caller's scale-down and rounding.
     """
 

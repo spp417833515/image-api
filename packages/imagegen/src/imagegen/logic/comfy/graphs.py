@@ -82,6 +82,11 @@ def mask_rewrite(
     With it the instruction can refer to what is under the mask ("make its fur blue" keeps the subject's pose); without
     it the white area is drawn from scratch. Measured: ~40 s vs ~17 s per step on fox.jpg; outside the mask 1.1–2.1/255
     on fox.jpg (photo) and up to 4.25/255 on sheet.jpg (line art).
+
+    The drift above is this graph's raw output (what an upgrade's checks measure): it repaints the whole picture and on
+    solid colours shifts it by 15.8–18.5/255 outside the mask. What a user gets is not this output: the business layer
+    pastes the original back outside the white area, with a feathered edge (imagegen.biz.masking.paste_back, ppwiki
+    decision 5, third revision).
     """
     graph = _loaders(config)
     graph["patch"] = {"class_type": "ModelPatchLoader", "inputs": {"name": config.model_patch}}
