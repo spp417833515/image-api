@@ -1,6 +1,8 @@
 """ImageGenService: the one entry point to image generation, for the web layer, programs and other projects.
 
-    async with create_service(Path("data")) as service:      # imagegen.factory
+    async with create_service(data_dir) as service:   # imagegen.factory; data_dir: a directory the caller owns
+                                                        # (image-api itself uses image_api.config's per-user one,
+                                                        # ~/.local/share/image-api)
         uploaded = await service.upload_image(png_bytes)
         accepted = await service.generate(GenerateRequest(steps=[StepRequest(instruction="a red fox in snow")]))
         job = await service.wait(accepted.job_id)

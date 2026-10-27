@@ -71,6 +71,11 @@ def round_to_multiple(size: Size, multiple: int) -> Size:
     return Size(nearest(size.width), nearest(size.height))
 
 
+# What transparent pixels become wherever an image is flattened for generation: the backend's view of the inputs and
+# the original pasted back after a mask step must agree, or the feathered edge would not match what the model saw.
+FLATTEN_BACKGROUND = (255, 255, 255)
+
+
 def flatten(image: Image.Image, background: tuple[int, int, int]) -> Image.Image:
     """RGB image with any transparency composited over background."""
     if image.mode == "RGB":
@@ -123,11 +128,18 @@ def resize_mask(mask: Image.Image, size: Size) -> Image.Image:
 
 
 def composite_masked(base: Image.Image, generated: Image.Image, mask: Image.Image, feather_px: int) -> Image.Image:
-    """generated in the white area of mask, base everywhere else, with a feathered edge. RGB.
+    """generated in the white area of mask, base elsewhere, with a feathered edge outside the white area. RGB.
 
-    The whole white area is generated, unchanged. Outside it, generated fades out linearly over the feather_px pixels
-    nearest the white area (Chebyshev distance); farther away the result is base, unchanged. feather_px is even
-    (the fade is a box blur of radius feather_px / 2); 0 gives a hard edge.
+    Each pixel is generated × a + base × (1 − a), a depending on the pixel's Chebyshev distance d to the white area:
+    - d = 0 (the white area): a = 1, generated unchanged;
+    - 1 ≤ d ≤ feather_px: next to a single straight edge a = (feather_px + 1 − d) / (feather_px + 1), from
+      feather_px/(feather_px+1) down to 1/(feather_px+1) (for 12: 235/255 … 20/255); elsewhere it is the share of
+      the (feather_px+1)² box around the pixel that lies within feather_px/2 of the white area;
+    - d > feather_px: a = 0, base unchanged.
+    Where the white area is near itself or the image border the fade saturates: an unpainted gap of at most
+    feather_px pixels between painted parts, and an unpainted margin of at most feather_px/2 pixels along the image
+    border, become generated entirely (a = 1); wider gaps up to 2·feather_px are blended but never reach base.
+    feather_px is even (a grow by feather_px/2, then a box blur of that radius); 0 gives a hard edge.
     base, generated and mask are the same size; mask is binarised (see binarize_mask).
     """
     if feather_px < 0 or feather_px % 2:
@@ -138,7 +150,7 @@ def composite_masked(base: Image.Image, generated: Image.Image, mask: Image.Imag
     alpha = mask.convert("L")
     if radius := feather_px // 2:
         # Grow the white area by the radius, then box-blur by it: the blur never reaches back into the white area
-        # (it stays 255) and falls to exactly 0 at distance feather_px outside it, in steps of 1/(feather_px + 1).
+        # (it stays 255) and is exactly 0 from distance feather_px + 1, in steps of 1/(feather_px + 1).
         alpha = alpha.filter(ImageFilter.MaxFilter(2 * radius + 1)).filter(ImageFilter.BoxBlur(radius))
     return Image.composite(generated.convert("RGB"), base.convert("RGB"), alpha)
 

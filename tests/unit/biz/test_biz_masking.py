@@ -12,7 +12,7 @@ from imagegen.biz.models import GenerateRequest, JobState, StepRequest
 from imagegen.biz.routing import MASK_FEATHER_PX, MASK_THRESHOLD
 from imagegen.logic import imaging
 from imagegen.logic.types import Size
-from PIL import Image, ImageChops, ImageFilter, ImageOps, ImageStat
+from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageOps, ImageStat
 
 BOX = (300, 150, 649, 399)
 
@@ -81,3 +81,22 @@ async def test_other_routes_store_the_backends_output_unchanged(service, backend
     assert (
         largest_difference(stored, Image.new("RGB", stored.size, (0, 90, 160)), Image.new("L", stored.size, 255)) == 0
     )
+
+
+async def test_the_result_is_exactly_the_composite_of_what_the_backend_was_given(service, backend) -> None:
+    """Diagonal and curved mask edges at a non-integer scale (1000×600 → 992×608): any other way of bringing the
+    mask or the original to the output size than the backend's (imaging.resize_mask / resize) changes edge pixels."""
+    original = noise(1000, 600)
+    painted = Image.new("L", (1000, 600), 0)
+    draw = ImageDraw.Draw(painted)
+    draw.ellipse((90, 70, 433, 371), fill=255)
+    draw.polygon([(520, 40), (980, 300), (930, 380), (470, 120)], fill=255)  # a slanted band
+    draw.line((60, 560, 940, 430), fill=255, width=9)
+    stored, generated = await run_mask_step(service, encode(original, "PNG"), encode(painted, "PNG"))
+    size = Size(*stored.size)
+    assert size == Size(992, 608)
+    sent = decoded(backend.runs[0].mask)  # the binarised mask the backend got, at the original's size
+    expected = imaging.composite_masked(
+        imaging.resize(original, size), generated, imaging.resize_mask(sent, size), MASK_FEATHER_PX
+    )
+    assert ImageChops.difference(stored, expected).getbbox() is None

@@ -18,7 +18,7 @@ from pathlib import Path
 import httpx
 import pytest
 import uvicorn
-from imagegen.biz.routing import MASK_FEATHER_PX, MASK_THRESHOLD, PASTE_BACKGROUND
+from imagegen.biz.routing import MASK_FEATHER_PX, MASK_THRESHOLD
 from imagegen.biz.version_checks import mask_drift
 from imagegen.factory import create_service
 from imagegen.logic import imaging
@@ -200,7 +200,7 @@ def test_mask_route_repaints_only_the_white_area(api, tmp_path, case) -> None:
     size = Size(*result.size)
     # The original and the mask at the output size, the way the service brings them there.
     stored_base, stored_mask = (imaging.decode(api.get(image["url"]).content) for image in (base, mask))
-    original = imaging.resize(imaging.flatten(stored_base, PASTE_BACKGROUND), size)
+    original = imaging.resize(imaging.flatten(stored_base, imaging.FLATTEN_BACKGROUND), size)
     white = imaging.resize_mask(imaging.binarize_mask(stored_mask, MASK_THRESHOLD), size)
     reach = white.filter(ImageFilter.MaxFilter(2 * MASK_FEATHER_PX + 1))
     beyond = ImageOps.invert(reach)

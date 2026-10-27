@@ -13,7 +13,7 @@ from PIL import Image
 
 from ..logic import imaging
 from ..logic.storage import ImageStore
-from .routing import MASK_FEATHER_PX, MASK_THRESHOLD, PASTE_BACKGROUND
+from .routing import MASK_FEATHER_PX, MASK_THRESHOLD
 
 
 def binarized_mask(store: ImageStore, image_id: str) -> Image.Image:
@@ -29,5 +29,5 @@ def paste_back(original: Path, mask: Image.Image, generated_png: bytes) -> bytes
     """
     generated = imaging.decode(generated_png, {"PNG"}).convert("RGB")
     size = imaging.size_of(generated)
-    base = imaging.resize(imaging.flatten(imaging.decode(original), PASTE_BACKGROUND), size)
+    base = imaging.resize(imaging.flatten(imaging.decode(original), imaging.FLATTEN_BACKGROUND), size)
     return imaging.to_png(imaging.composite_masked(base, generated, imaging.resize_mask(mask, size), MASK_FEATHER_PX))

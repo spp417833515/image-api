@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from .. import imaging
 from ..types import StepInput
 
-WHITE = (255, 255, 255)
+WHITE = imaging.FLATTEN_BACKGROUND
 
 
 @dataclass(frozen=True, slots=True)

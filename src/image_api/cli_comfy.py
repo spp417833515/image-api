@@ -31,7 +31,7 @@ from imagegen.biz.version_state import (
 from imagegen.biz.versions import NotSwitched, Outcome, RevertFailed, VersionManager
 from imagegen.factory import create_version_manager
 
-from .config import Settings, data_dir_arg
+from .config import DATA_DIR_RULE, data_dir_arg
 
 EXIT_PASSED, EXIT_REVERTED, EXIT_NOT_SWITCHED, EXIT_NEEDS_RECOVER, EXIT_UNEXPECTED = 0, 1, 2, 3, 4
 SHOWN_RELEASES = 10
@@ -40,14 +40,8 @@ type Subparsers = argparse._SubParsersAction[argparse.ArgumentParser]
 
 
 def register(commands: Subparsers) -> None:
-    settings = Settings.from_env()
     common = argparse.ArgumentParser(add_help=False)
-    common.add_argument(
-        "--data-dir",
-        type=data_dir_arg,
-        default=settings.data_dir,
-        help=f"数据目录，和 serve 用同一个（默认 {settings.data_dir}）",
-    )
+    common.add_argument("--data-dir", type=data_dir_arg, help=f"数据目录，和 serve 用同一个（默认 {DATA_DIR_RULE}）")
     comfy = commands.add_parser("comfy", help="ComfyUI 本体：看版本、升级、回滚")
     actions = comfy.add_subparsers(dest="comfy_command", required=True, metavar="ACTION")
 

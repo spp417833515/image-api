@@ -30,10 +30,10 @@ MASK_THRESHOLD = 0.5  # mask pixels with luminance ≥ this are repainted
 # output fades into it over this many pixels outside the white area (the white area itself stays all model output).
 # 12: the largest shift measured outside the white area (18.5/255, on solid colours) then changes by about 1.5 levels
 # per pixel, too gradual to show as a seam, where a hard edge shows a line. It costs no part of the edit (the band lies
-# outside the white area, so even the page's thinnest 8 px stroke stays whole) and reaches only 12 px past what was
-# painted, about 1% of a 1024 px side.
+# outside the white area, so even the page's thinnest 8 px stroke stays whole) and blends only the 12 px past what was
+# painted (the 12th at 1/13), about 1% of a 1024 px side. Unpainted gaps of up to 12 px between painted parts, and
+# margins of up to 6 px along the image border, come back as model output (see imaging.composite_masked).
 MASK_FEATHER_PX = 12
-PASTE_BACKGROUND = (255, 255, 255)  # transparent parts of the original are pasted back on white
 
 ROUTE_NAMES = {Route.T2I: "文生图", Route.REF: "参考图编辑", Route.MASK: "蒙版改写"}
 
