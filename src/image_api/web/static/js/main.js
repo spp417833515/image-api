@@ -131,7 +131,16 @@ function onClick(e){
 }
 
 function onInput(e){
-  const t = e.target, f = t.dataset.field; if (!f) return;
+  const t = e.target;
+  if (t.id === 'model'){
+    if (S.job){ t.value = S.model; return; }
+    S.model = t.value;
+    localStorage.setItem('image-api.model', S.model);
+    renderAll();
+    schedulePlan(refreshDyn);
+    return;
+  }
+  const f = t.dataset.field; if (!f) return;
   if (f === 'brush'){
     S.brush.size = +t.value; $('#bsz').textContent = t.value;
     const dot = t.closest('.size').querySelector('.pv i'), d = brushDot(S.brush.size) + 'px'; dot.style.width = dot.style.height = d;

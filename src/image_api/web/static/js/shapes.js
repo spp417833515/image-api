@@ -63,6 +63,7 @@ export const SHAPES = {
     last_check:nul(obj({ at:iso, version, items:arr(obj({ label:str, ok:bool, note:nul(str) }), 1) })),
     last_operation:nul(obj({ at:iso, kind:oneOf('upgrade', 'rollback'), from:version, to:version, result:oneOf('passed', 'reverted'), note:nul(str) })),
     routes:obj({ t2i:routeState, ref:routeState, mask:routeState }),
+    models:arr(obj({ id:str, label:str, routes:obj({ t2i:routeState, ref:routeState, mask:routeState }) }), 1),
     limits:obj({ max_images:int, size_multiple:int, default_size:size }),
     size_presets:arr(obj({ label:str, width:int, height:int })),
   }),

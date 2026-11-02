@@ -13,7 +13,7 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validato
 
 from ..logic.backend import UnavailableCode
 from ..logic.storage import ImageMeta
-from ..logic.types import Route
+from ..logic.types import ModelId, Route
 
 IMAGES_PATH = "/api/images"
 
@@ -78,6 +78,7 @@ class StepRequest(BaseModel):
 class GenerateRequest(BaseModel):
     model_config = _MODEL
 
+    model: ModelId = ModelId.QWEN_IMAGE_2_1  # which weights every step of this request runs
     first_step: int = Field(default=1, ge=1)  # the page's number for steps[0]; plans, jobs and errors count from it
     steps: list[StepRequest] = Field(min_length=1)
 

@@ -39,6 +39,7 @@ STATUS = {
     "last_check": None,
     "last_operation": None,
     "routes": ROUTES,
+    "models": [{"id": "qwen-image-2.1", "label": "Qwen-Image 2.1", "routes": ROUTES}],
     "limits": {"max_images": 4, "size_multiple": 32, "default_size": {"width": 1024, "height": 1024}},
     "size_presets": [{"label": "1:1", "width": 1024, "height": 1024}],
 }

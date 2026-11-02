@@ -7,7 +7,7 @@ from __future__ import annotations
 from typing import Any
 
 from ..backend import Unavailable, UnavailableCode, UnexpectedResponse
-from ..types import Route, Size
+from ..types import ModelId, Route, Size
 from . import graphs
 from .config import ComfyConfig
 
@@ -26,14 +26,18 @@ _PROBE_INPUTS: dict[Route, tuple[tuple[str, ...], str | None]] = {
 }
 
 
-def check_routes(object_info: dict[str, Any], config: ComfyConfig) -> dict[Route, Unavailable | None]:
-    return {route: check_route(object_info, config, route) for route in Route}
+def check_routes(
+    object_info: dict[str, Any], config: ComfyConfig, model: ModelId = ModelId.QWEN_IMAGE_2_1
+) -> dict[Route, Unavailable | None]:
+    return {route: check_route(object_info, config, route, model) for route in Route}
 
 
-def check_route(object_info: dict[str, Any], config: ComfyConfig, route: Route) -> Unavailable | None:
+def check_route(
+    object_info: dict[str, Any], config: ComfyConfig, route: Route, model: ModelId = ModelId.QWEN_IMAGE_2_1
+) -> Unavailable | None:
     """None when every node, input, option and model file the route's graph uses is offered by this ComfyUI."""
     images, mask = _PROBE_INPUTS[route]
-    graph = graphs.build(config, route, images=images, mask=mask, **_PROBE)
+    graph = graphs.build(config, route, images=images, mask=mask, model=model, **_PROBE)
     problems: list[Unavailable] = []
     for node in graph.values():
         try:
@@ -62,8 +66,17 @@ def _node_problems(class_type: str, inputs: dict[str, Any], object_info: dict[st
     for key, value in inputs.items():
         name, _, slot = key.partition(".")
         spec = declared.get(name)
-        if spec is None or (slot and slot not in _autogrow_names(spec)):
+        if spec is None or (slot and not _slot_known(spec, inputs.get(name), slot)):
             problems.append(_missing_node(f"节点 {class_type} 缺少输入 {key}", f"{class_type}.{key}"))
+            continue
+        if slot:
+            spec = _slot_spec(spec, inputs.get(name), slot)
+        elif spec and spec[0] == "COMFY_DYNAMICCOMBO_V3":
+            keys = [option.get("key") for option in spec[1].get("options", [])]
+            if value not in keys:
+                problems.append(
+                    _missing_node(f"节点 {class_type} 的输入 {name} 不支持 {value}", f"{class_type}.{name}={value}")
+                )
             continue
         options = _combo_options(spec)
         if options is None or isinstance(value, list) or _is_upload(spec) or value in options:
@@ -98,9 +111,39 @@ def _combo_options(spec: list[Any]) -> list[Any] | None:
 
 
 def _autogrow_names(spec: list[Any]) -> list[str]:
-    if spec and isinstance(spec[0], str) and spec[0].startswith("COMFY_AUTOGROW") and len(spec) > 1:
-        return spec[1].get("template", {}).get("names", [])
-    return []
+    if not (spec and isinstance(spec[0], str) and spec[0].startswith("COMFY_AUTOGROW") and len(spec) > 1):
+        return []
+    template = spec[1].get("template", {})
+    if "names" in template:
+        return list(template["names"])
+    prefix = template.get("prefix")
+    if prefix is None:
+        return []
+    return [f"{prefix}{i}" for i in range(int(template.get("max", 0)))]
+
+
+def _slot_known(spec: list[Any], selected: Any, slot: str) -> bool:
+    return slot in _autogrow_names(spec) or _dynamic_child(spec, selected, slot) is not None
+
+
+def _slot_spec(spec: list[Any], selected: Any, slot: str) -> list[Any]:
+    """The nested input a dotted key writes, or the parent when the slot is only an autogrow name."""
+    child = _dynamic_child(spec, selected, slot)
+    return spec if child is None else child
+
+
+def _dynamic_child(spec: list[Any], selected: Any, slot: str) -> list[Any] | None:
+    if not (spec and spec[0] == "COMFY_DYNAMICCOMBO_V3" and len(spec) > 1):
+        return None
+    for option in spec[1].get("options", []):
+        if option.get("key") != selected:
+            continue
+        fields = option.get("inputs", {})
+        for group in ("required", "optional"):
+            child = fields.get(group, {}).get(slot)
+            if child is not None:
+                return child
+    return None
 
 
 def _is_upload(spec: list[Any]) -> bool:

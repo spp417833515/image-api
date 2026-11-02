@@ -1,10 +1,42 @@
 {
+ "BatchImagesNode": {
+  "input": {
+   "required": {
+    "images": [
+     "COMFY_AUTOGROW_V3",
+     {
+      "template": {
+       "input": {
+        "required": {
+         "image": [
+          "IMAGE",
+          {}
+         ]
+        }
+       },
+       "prefix": "image",
+       "min": 1,
+       "max": 50
+      }
+     }
+    ]
+   }
+  },
+  "output": [
+   "IMAGE"
+  ],
+  "output_name": [
+   "IMAGE"
+  ]
+ },
  "CLIPLoader": {
   "input": {
    "required": {
     "clip_name": [
      [
-      "qwen3vl_8b_int8_convrot.safetensors"
+      "qwen3vl_8b_int8_convrot.safetensors",
+      "qwen3.5_9b_qwen_image_2.1_pe_t2i.int8_convrot.safetensors",
+      "qwen3.5_9b_qwen_image_2.1_pe_i2i.int8_convrot.safetensors"
      ]
     ],
     "type": [
@@ -517,6 +549,109 @@
   ],
   "output_name": [
    "VAE"
+  ]
+ },
+ "TextGenerate": {
+  "input": {
+   "required": {
+    "clip": [
+     "CLIP",
+     {}
+    ],
+    "prompt": [
+     "STRING",
+     {}
+    ],
+    "max_length": [
+     "INT",
+     {
+      "default": 512
+     }
+    ],
+    "sampling_mode": [
+     "COMFY_DYNAMICCOMBO_V3",
+     {
+      "options": [
+       {
+        "key": "on",
+        "inputs": {
+         "required": {
+          "temperature": [
+           "FLOAT",
+           {}
+          ],
+          "top_k": [
+           "INT",
+           {}
+          ],
+          "top_p": [
+           "FLOAT",
+           {}
+          ],
+          "min_p": [
+           "FLOAT",
+           {}
+          ],
+          "repetition_penalty": [
+           "FLOAT",
+           {}
+          ],
+          "seed": [
+           "INT",
+           {}
+          ]
+         },
+         "optional": {
+          "presence_penalty": [
+           "FLOAT",
+           {}
+          ]
+         }
+        }
+       },
+       {
+        "key": "off",
+        "inputs": {
+         "required": {}
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "optional": {
+    "image": [
+     "IMAGE",
+     {}
+    ],
+    "thinking": [
+     "BOOLEAN",
+     {}
+    ],
+    "use_default_template": [
+     "BOOLEAN",
+     {}
+    ],
+    "mtp": [
+     [
+      "auto",
+      "off"
+     ],
+     {}
+    ],
+    "system_prompt": [
+     "STRING",
+     {}
+    ]
+   }
+  },
+  "output": [
+   "STRING",
+   "STRING"
+  ],
+  "output_name": [
+   "generated_text",
+   "thinking"
   ]
  }
 }

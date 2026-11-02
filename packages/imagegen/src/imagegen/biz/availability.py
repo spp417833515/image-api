@@ -14,10 +14,10 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from ..logic.backend import BackendStatus, ImageBackend
-from ..logic.types import Route
+from ..logic.types import MODEL_LABELS, ModelId, Route
 from .models import ImageSize, UnavailableReason
 from .routing import ROUTE_NAMES, Limits
-from .status_models import LimitsInfo, RoutesState, RouteState, SizePreset, StatusResponse
+from .status_models import LimitsInfo, ModelInfo, RoutesState, RouteState, SizePreset, StatusResponse
 from .version_state import RECOVER_COMMAND, Interrupted, Upgrading, Version, VersionState
 
 MAX_AGE_S = 5.0
@@ -83,18 +83,21 @@ class Availability:
         self._fetched_at = float("-inf")
         self._start_fetch()
 
-    def problems(self, snapshot: Snapshot, block: Upgrading | Interrupted | None) -> dict[Route, RouteProblem | None]:
-        """Per route the backend supports: None when it can run now. block: VersionState.generation_block()."""
+    def problems(
+        self, snapshot: Snapshot, block: Upgrading | Interrupted | None, model: ModelId = ModelId.QWEN_IMAGE_2_1
+    ) -> dict[Route, RouteProblem | None]:
+        """Per route the backend supports for this model: None when it can run now. block: generation_block()."""
         if block is not None:
             return dict.fromkeys(self._limits.routes, _blocked(block))
+        routes = _routes_of(snapshot, model)
         found: dict[Route, RouteProblem | None] = {}
         for route in self._limits.routes:
-            if route not in snapshot.backend.routes:
+            if route not in routes:
                 raise ValueError(
-                    f"backend {snapshot.backend.backend!r} declares route {route} but its status has no entry for it: "
-                    f"{dict(snapshot.backend.routes)}"
+                    f"backend {snapshot.backend.backend!r} declares route {route} but model {model} has no entry: "
+                    f"{dict(routes)}"
                 )
-            problem = snapshot.backend.routes[route]
+            problem = routes[route]
             found[route] = (
                 None if problem is None else RouteProblem(UnavailableReason(problem.code), problem.message, problem.raw)
             )
@@ -103,15 +106,23 @@ class Availability:
     async def status(self) -> StatusResponse:
         snapshot = await self.current()
         block = self._state.generation_block()
-        problems = self.problems(snapshot, block)
         limits = self._limits
+        # A backend that does not list models (tests, older fakes) only knows the default.
+        chosen = snapshot.backend.models or None
 
-        def state(route: Route) -> RouteState:
-            if route not in limits.routes:
-                return RouteState(available=False, reason=f"当前生图后端不支持{ROUTE_NAMES[route]}")
-            problem = problems[route]
-            return RouteState(available=problem is None, reason=None if problem is None else problem.message)
+        def state_of(model: ModelId) -> RoutesState:
+            problems = self.problems(snapshot, block, model)
 
+            def one(route: Route) -> RouteState:
+                if route not in limits.routes:
+                    return RouteState(available=False, reason=f"当前生图后端不支持{ROUTE_NAMES[route]}")
+                problem = problems[route]
+                return RouteState(available=problem is None, reason=None if problem is None else problem.message)
+
+            return RoutesState(t2i=one(Route.T2I), ref=one(Route.REF), mask=one(Route.MASK))
+
+        model_ids = [ModelId(item.id) for item in chosen] if chosen else [ModelId.QWEN_IMAGE_2_1]
+        models = [ModelInfo(id=model, label=MODEL_LABELS[model], routes=state_of(model)) for model in model_ids]
         return StatusResponse(
             backend=snapshot.backend.backend,
             host=snapshot.backend.host,
@@ -120,7 +131,8 @@ class Availability:
             version=snapshot.version,
             last_check=self._state.last_check(),
             last_operation=self._state.last_operation(),
-            routes=RoutesState(t2i=state(Route.T2I), ref=state(Route.REF), mask=state(Route.MASK)),
+            routes=models[0].routes,
+            models=models,
             limits=LimitsInfo(
                 max_images=limits.max_images,
                 max_edge=limits.max_edge,
@@ -151,6 +163,15 @@ class Availability:
         # Retrieved here so a refresh nobody awaited (planning's background one) is still reported.
         if not task.cancelled() and (error := task.exception()) is not None:
             logger.error("reading the backend status / installed version failed", exc_info=error)
+
+
+def _routes_of(snapshot: Snapshot, model: ModelId):
+    for item in snapshot.backend.models:
+        if item.id == model:
+            return item.routes
+    if model is ModelId.QWEN_IMAGE_2_1 or not snapshot.backend.models:
+        return snapshot.backend.routes
+    raise ValueError(f"backend {snapshot.backend.backend!r} has no status for model {model}")
 
 
 def _blocked(block: Upgrading | Interrupted) -> RouteProblem:

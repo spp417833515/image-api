@@ -1,11 +1,12 @@
 /* 顶栏：ComfyUI 在线状态 + 版本浮层（GET /api/status，只显示，不能操作） */
 import { $, esc, fmtT, routeName } from './dom.js';
 import { icon } from './icons.js';
-import { S, routesOff } from './store.js';
+import { S, currentModel, currentModelId, routesOff } from './store.js';
 
 const verOf = v => v.tag || v.commit;
 
 export function renderTop(){
+  renderModel();
   const s = S.status, el = $('#status'), chev = icon(S.popOpen ? 'up' : 'down', 12);
   let cls = 'status', txt;
   if (S.statusError){ cls += ' down'; txt = S.statusError.trouble.title; }
@@ -24,6 +25,25 @@ export function renderTop(){
   el.setAttribute('aria-expanded', S.popOpen ? 'true' : 'false');
   const pop = $('#pop'); pop.hidden = !S.popOpen;
   pop.innerHTML = !S.popOpen ? '' : S.statusError ? errorPop(S.statusError) : s ? popHTML(s) : '';
+}
+
+/* 顶栏的模型选择。选项没变就不重画，免得把正在打开的列表关掉 */
+function renderModel(){
+  const sel = $('#model'), name = $('#modelName');
+  const models = S.status && S.status.models || [];
+  const id = currentModelId();
+  const picked = currentModel(S.status);
+  if (name) name.textContent = `${picked ? picked.label : 'Qwen-Image 2.1'} · 本机`;
+  if (!sel) return;
+  const ids = models.map(m => m.id).join('|');
+  if (sel.dataset.ids !== ids){
+    sel.innerHTML = models.map(m => `<option value="${esc(m.id)}">${esc(m.label)}</option>`).join('');
+    sel.dataset.ids = ids;
+  }
+  if (sel.value !== id) sel.value = id;
+  sel.disabled = !!S.job || !models.length;
+  const off = picked && Object.values(picked.routes).some(r => !r.available);
+  sel.title = off ? '这个模型的权重或节点还没齐，生成时会说明缺什么' : '切换生图模型';
 }
 
 /* 后端本身连不上 / 出错：说清楚是哪个请求、后端给了什么 */

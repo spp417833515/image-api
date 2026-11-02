@@ -13,6 +13,7 @@ const first = newStep();
 export const S = {
   steps:[first], sel:first.id, view:{ kind:'step', id:first.id }, mode:'view', brush:{ size:64, erase:false },
   status:null, statusError:null,   // GET /api/status 最近一次的返回 / 失败（ApiError）
+  model:localStorage.getItem('image-api.model') || 'qwen-image-2.1',
   plan:{}, planError:null,         // POST /api/plan：plan[步骤 id] = {p: 这一步的规划, key: 规划依据}，见 pl()
   job:null,                        // 正在跑的任务：{segs, si, after, id, shown, failSince, fails}
   history:[], historyDone:false, historyLoading:false, historyFailed:false, fresh:new Set(),   // historyFailed：第一页没读到
@@ -31,9 +32,22 @@ export function fail(what, err, { title = `${what}失败`, note = '' } = {}){
 /* 读完一个请求：成功了就收起之前同一件事的失败说明 */
 export function clearFault(what){ if (S.fault && S.fault.what === what) S.fault = null; }
 
-/* 各路由现在能不能用（GET /api/status 的 routes） */
-export const routesOff = status => Object.keys(status.routes).filter(k => !status.routes[k].available);
-export const routesOn = status => Object.keys(status.routes).filter(k => status.routes[k].available);
+/* 当前选中的模型。状态里没有这个 id（或还没读到状态）时用列表第一项，再不行用已保存的 id */
+export function currentModel(status){
+  const models = status && status.models || [];
+  return models.find(m => m.id === S.model) || models[0] || null;
+}
+export function currentModelId(){
+  const model = currentModel(S.status);
+  return model ? model.id : S.model;
+}
+/* 各路由现在能不能用：看选中的模型，没有模型列表时看默认 routes */
+export function activeRoutes(status){
+  const model = currentModel(status);
+  return model ? model.routes : status.routes;
+}
+export const routesOff = status => Object.keys(activeRoutes(status)).filter(k => !activeRoutes(status)[k].available);
+export const routesOn = status => Object.keys(activeRoutes(status)).filter(k => activeRoutes(status)[k].available);
 /* 正在跑的那一步，和它的进度百分比（GET /api/jobs 的 progress，0–1） */
 export const runningIdx = () => S.steps.findIndex(s => s.run && s.run.state === 'running');
 export const pctOf = run => Math.floor((run.progress || 0) * 100);
@@ -79,7 +93,7 @@ export function setPlan(ids, body, plan){
 export const checking = i => !isDone(S.steps[i]) && !pl(i);
 
 export function bodyFor(seg){
-  return { first_step:seg[0] + 1, steps:seg.map(i => {
+  return { model:currentModelId(), first_step:seg[0] + 1, steps:seg.map(i => {
     const st = S.steps[i], prev = prevImage(i);
     return { instruction:st.instruction,
              images:st.items.map(it => it.kind === 'prev' ? (prev ? prev.id : '$prev') : it.id),

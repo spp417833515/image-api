@@ -25,6 +25,12 @@ class ComfyConfig:
     clip: str = "qwen3vl_8b_int8_convrot.safetensors"
     clip_type: str = "qwen_image"
     vae: str = "qwen_image_2.1_vae_bf16.safetensors"
+    # Official Qwen-Image 2.1 prompt rewriters. Text-to-image uses the text-only one. Edits use the vision one,
+    # which sees the current images. The image weights stay the uncensored checkpoint above.
+    prompt_enhancer: str = "qwen3.5_9b_qwen_image_2.1_pe_t2i.int8_convrot.safetensors"
+    prompt_enhancer_type: str = "stable_diffusion"
+    prompt_enhancer_edit: str = "qwen3.5_9b_qwen_image_2.1_pe_i2i.int8_convrot.safetensors"
+    prompt_enhancer_edit_type: str = "qwen_image"
 
     # Sampling (fixed for every route).
     steps: int = 25

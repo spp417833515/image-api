@@ -28,7 +28,8 @@ MAX_SAFE_SEED = 2**53 - 1  # larger integers lose precision in the page's JavaSc
 MASK_THRESHOLD = 0.5  # mask pixels with luminance ≥ this are repainted
 # Mask route: the original is pasted back outside the white area (ppwiki decision id=5, third revision); the model's
 # output fades into it over this many pixels outside the white area (the white area itself stays all model output).
-# 12: the largest shift measured outside the white area (18.5/255, on solid colours) then changes by about 1.5 levels
+# 12, whatever the backend: even the largest shift ever measured outside the white area (18.5/255, the replaced
+# inpaint-patch graph on solid colours; the base-latent graph measures 0.3–2.1/255) then changes by about 1.5 levels
 # per pixel, too gradual to show as a seam, where a hard edge shows a line. It costs no part of the edit (the band lies
 # outside the white area, so even the page's thinnest 8 px stroke stays whole) and blends only the 12 px past what was
 # painted (the 12th at 1/13), about 1% of a 1024 px side. Unpainted gaps of up to 12 px between painted parts, and

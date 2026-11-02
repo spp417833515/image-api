@@ -14,6 +14,19 @@ class Route(StrEnum):
     MASK = "mask"  # mask rewrite; images[0] is the base image the mask is painted on
 
 
+class ModelId(StrEnum):
+    """Which weights a step runs. The default is what this project shipped with."""
+
+    QWEN_IMAGE_2_1 = "qwen-image-2.1"
+    FLUX3_KLEIN = "flux3-image-klein"
+
+
+MODEL_LABELS: dict[ModelId, str] = {
+    ModelId.QWEN_IMAGE_2_1: "Qwen-Image 2.1",
+    ModelId.FLUX3_KLEIN: "FLUX 3 Image Klein",
+}
+
+
 @dataclass(frozen=True, slots=True)
 class Size:
     width: int
@@ -58,6 +71,7 @@ class StepInput:
     mask: ImageRef | None
     seed: int
     size: Size
+    model: ModelId = ModelId.QWEN_IMAGE_2_1
 
 
 @dataclass(frozen=True, slots=True)

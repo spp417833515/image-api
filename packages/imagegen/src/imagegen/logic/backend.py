@@ -6,7 +6,7 @@ The business layer depends only on this module; concrete backends (e.g. imagegen
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Protocol, runtime_checkable
 
@@ -40,12 +40,21 @@ class BackendCapabilities:
 
 
 @dataclass(frozen=True, slots=True)
+class ModelRoutes:
+    """One image model's route availability. id is a ModelId value."""
+
+    id: str
+    routes: Mapping[Route, Unavailable | None]  # None = available
+
+
+@dataclass(frozen=True, slots=True)
 class BackendStatus:
     backend: str  # backend name, e.g. "comfyui"
     host: str  # e.g. "127.0.0.1:8188"
     online: bool
     version: str | None  # the backend's own version string, None when offline
-    routes: Mapping[Route, Unavailable | None]  # None = available
+    routes: Mapping[Route, Unavailable | None]  # None = available; the default model's routes
+    models: tuple[ModelRoutes, ...] = field(default_factory=tuple)  # empty: only `routes` is known
 
 
 class BackendUnavailable(Exception):

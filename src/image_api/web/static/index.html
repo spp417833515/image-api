@@ -13,7 +13,8 @@
 <body>
 <div class="app">
   <header class="top">
-    <div class="brand"><span class="logo" id="logo"></span>生图入口<small>Qwen-Image 2.1 · 本机</small></div>
+    <div class="brand"><span class="logo" id="logo"></span>生图入口<small id="modelName">Qwen-Image 2.1 · 本机</small></div>
+    <select id="model" class="model" aria-label="切换模型"></select>
     <button class="status" id="status" data-act="ver" aria-haspopup="dialog" title="ComfyUI 版本和检查结果"></button>
     <div class="pop" id="pop" role="dialog" aria-label="ComfyUI 版本" hidden></div>
   </header>

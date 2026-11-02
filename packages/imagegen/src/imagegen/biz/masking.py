@@ -1,8 +1,8 @@
 """The mask rules: what counts as painted, and what a mask step's result is.
 
-A mask step repaints the white area and nothing else. Backends repaint the whole picture and may shift colours
-outside the white area (measured up to 18.5/255 on solid colours), so the original is pasted back there, whatever the
-backend (ppwiki decision id=5, third revision).
+A mask step repaints the white area and nothing else. A backend's output may differ from the original outside the
+white area (ComfyUI's base-latent graph: 0.3–2.1/255 measured; the inpaint-patch graph it replaced, up to 18.5/255 on
+solid colours), so the original is pasted back there, whatever the backend (ppwiki decision id=5, third revision).
 """
 
 from __future__ import annotations

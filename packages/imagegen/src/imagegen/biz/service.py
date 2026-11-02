@@ -111,7 +111,7 @@ class ImageGenService:
     async def plan(self, request: GenerateRequest) -> PlanResponse:
         """Route, output size or reject per step, and availability. Never waits on the backend (cached status)."""
         snapshot = await self._availability.cached()
-        problems = self._availability.problems(snapshot, self.version_state.generation_block())
+        problems = self._availability.problems(snapshot, self.version_state.generation_block(), request.model)
         return plan_response(await asyncio.to_thread(self._planner.plan, request, problems))
 
     async def generate(self, request: GenerateRequest) -> GenerateAccepted:
@@ -122,7 +122,9 @@ class ImageGenService:
             raise RuntimeError("the service is not started: use `async with service:` or `await service.start()`")
         block = self.version_state.generation_block()
         snapshot = await (self._availability.cached() if block else self._availability.refresh())
-        plans = await asyncio.to_thread(self._planner.plan, request, self._availability.problems(snapshot, block))
+        plans = await asyncio.to_thread(
+            self._planner.plan, request, self._availability.problems(snapshot, block, request.model)
+        )
         if any(p.reject is not None for p in plans):
             raise Rejected(plan_response(plans))
         blocked = next((p.unavailable for p in plans if p.unavailable is not None), None)
@@ -140,6 +142,7 @@ class ImageGenService:
                     mask=step.mask,
                     seed=self.limits.random_seed() if step.seed is None else step.seed,
                     size=plan.output if plan.route is Route.T2I else None,
+                    model=request.model,
                 )
             )
         return GenerateAccepted(job_id=self._jobs.submit(request.first_step, steps))

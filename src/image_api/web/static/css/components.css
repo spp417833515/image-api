@@ -1,6 +1,8 @@
 /* 组件：顶栏状态、步骤卡、图块、按钮、画布上的浮层、历史条目 */
 
-/* ---------- 顶栏：ComfyUI 状态 + 版本浮层（只读） ---------- */
+/* ---------- 顶栏：模型切换、ComfyUI 状态 + 版本浮层 ---------- */
+.model{height:var(--btn-h);max-width:240px;padding:0 var(--sp-3);border:1px solid var(--line);border-radius:var(--r-pill);background:var(--panel);color:var(--text);font-size:var(--fs-s)}
+.model:disabled{color:var(--text-3)}
 .status{margin-left:auto;display:flex;align-items:center;gap:var(--sp-2);height:var(--btn-h);padding:0 var(--sp-3);border:1px solid var(--line);border-radius:var(--r-pill);font-size:var(--fs-s);color:var(--text-2);background:var(--panel)}
 .status .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px color-mix(in srgb,var(--ok) 22%,transparent)}
 .status.down{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 40%,var(--line))}

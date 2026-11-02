@@ -50,6 +50,16 @@ class SizePreset(BaseModel):
     height: int
 
 
+class ModelInfo(BaseModel):
+    """One image model the page can switch to, with that model's own route availability."""
+
+    model_config = _MODEL
+
+    id: str
+    label: str
+    routes: RoutesState
+
+
 class StatusResponse(BaseModel):
     model_config = _MODEL
 
@@ -60,6 +70,7 @@ class StatusResponse(BaseModel):
     version: Version
     last_check: LastCheck | None
     last_operation: Operation | None
-    routes: RoutesState
+    routes: RoutesState  # the default model's routes (Qwen-Image 2.1)
+    models: list[ModelInfo]
     limits: LimitsInfo
     size_presets: list[SizePreset]

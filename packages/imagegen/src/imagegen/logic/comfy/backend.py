@@ -17,12 +17,13 @@ from ..backend import (
     BackendStatus,
     BackendUnavailable,
     CleanupFailed,
+    ModelRoutes,
     StepFailed,
     Unavailable,
     UnavailableCode,
     UnexpectedResponse,
 )
-from ..types import ProgressCallback, Route, Size, StepInput, StepOutput
+from ..types import ModelId, ProgressCallback, Route, Size, StepInput, StepOutput
 from . import graphs
 from .availability import check_route, check_routes
 from .client import ComfyClient, ComfyHTTPError, ComfyUnreachable
@@ -69,7 +70,12 @@ class ComfyBackend:
             return self._offline(self._down(exc))
         except ComfyHTTPError as exc:
             return self._offline(self._erroring(exc))
-        return BackendStatus(self.name, self.config.host, True, _version(stats), check_routes(info, self.config))
+        models = tuple(
+            ModelRoutes(model, check_routes(info, self.config, model)) for model in ModelId
+        )
+        return BackendStatus(
+            self.name, self.config.host, True, _version(stats), models[0].routes, models
+        )
 
     async def run(self, step: StepInput, on_progress: ProgressCallback | None = None) -> StepOutput:
         if not 0 <= step.seed <= MAX_SEED:
@@ -92,9 +98,10 @@ class ComfyBackend:
             images=[name for name in files if name != mask_name],
             mask=mask_name,
             output_prefix=f"{run_files.token}_out",
+            model=step.model,
         )
         try:
-            png, size = await self._generate(step.route, graph, files, run_files, on_progress)
+            png, size = await self._generate(step.route, step.model, graph, files, run_files, on_progress)
         except BaseException as failure:
             self._clean_up_after(failure, run_files)
             raise
@@ -110,6 +117,7 @@ class ComfyBackend:
     async def _generate(
         self,
         route: Route,
+        model: ModelId,
         graph: graphs.Graph,
         files: dict[str, bytes],
         run_files: _RunFiles,
@@ -121,7 +129,7 @@ class ComfyBackend:
                     info = await client.object_info()
                 except ComfyHTTPError as exc:
                     raise BackendUnavailable(self._erroring(exc)) from exc
-                problem = check_route(info, self.config, route)
+                problem = check_route(info, self.config, route, model)
                 if problem is not None:
                     raise BackendUnavailable(problem)
                 for name, data in files.items():
@@ -151,7 +159,9 @@ class ComfyBackend:
             failure.add_note(f"cleaning up this run's ComfyUI files also failed: {exc}")
 
     def _offline(self, problem: Unavailable) -> BackendStatus:
-        return BackendStatus(self.name, self.config.host, False, None, {route: problem for route in Route})
+        routes = {route: problem for route in Route}
+        models = tuple(ModelRoutes(model, routes) for model in ModelId)
+        return BackendStatus(self.name, self.config.host, False, None, routes, models)
 
     def _down(self, exc: ComfyUnreachable) -> Unavailable:
         return Unavailable(UnavailableCode.BACKEND_DOWN, f"ComfyUI 未运行或连不上（{self.config.host}）", str(exc))

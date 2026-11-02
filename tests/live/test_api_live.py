@@ -319,6 +319,42 @@ def test_a_missing_model_file_is_503_naming_the_file(tmp_path) -> None:
             assert body["code"] == "missing_file" and path in body["message"] and body["raw"] == path
 
 
+def test_what_one_route_lacks_blocks_only_that_route(tmp_path) -> None:
+    """Only the affected route is blocked; the others keep running. A LoadImageMask channel this ComfyUI does not offer
+    is something only the mask route uses (its model files are shared with the other routes, see the case above)."""
+    with running_api(tmp_path / "data", ComfyConfig(mask_channel="purple")) as client:
+        status = client.get("/api/status").json()
+        assert status["online"] and status["routes"]["t2i"]["available"] and status["routes"]["ref"]["available"]
+        mask_route = status["routes"]["mask"]
+        assert (
+            not mask_route["available"] and "LoadImageMask" in mask_route["reason"] and "purple" in mask_route["reason"]
+        )
+        base = upload(client, solid_png(256, 256, (90, 120, 160)), "base.png")
+        mask = Image.new("L", (256, 256), 0)
+        ImageDraw.Draw(mask).rectangle((64, 64, 191, 191), fill=255)
+        out = io.BytesIO()
+        mask.save(out, format="PNG")
+        painted = upload(client, out.getvalue(), "mask.png")
+        mask_step = {"instruction": "a red ball", "images": [base["id"]], "mask": painted["id"]}
+        assert plan(client, {"steps": [mask_step]})["steps"][0]["unavailable"]["code"] == "missing_node"
+        response = client.post("/api/generate", json={"steps": [mask_step]})
+        assert response.status_code == 503, response.text
+        body = response.json()
+        assert body["code"] == "missing_node" and body["raw"] == "LoadImageMask.channel=purple"
+        others = {
+            "steps": [
+                {"instruction": "a red ball on a table", "width": 256, "height": 256, "seed": 3},
+                {"instruction": "make the ball blue", "images": ["$prev"], "seed": 4},
+            ]
+        }
+        assert all(step["unavailable"] is None for step in plan(client, others)["steps"])
+        job = run_job(client, others)
+        assert job["state"] == "done", job
+        assert [s["route"] for s in job["steps"]] == ["t2i", "ref"]
+        for step in job["steps"]:
+            assert done_image(client, step).size == (256, 256)
+
+
 def test_a_step_comfyui_rejects_fails_with_its_number_and_original_text(tmp_path) -> None:
     with running_api(tmp_path / "data", ComfyConfig(steps=0)) as client:
         request = {

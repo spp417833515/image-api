@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from ..logic import imaging
 from ..logic.backend import BackendUnavailable, CleanupFailed, ImageBackend, StepFailed, UnexpectedResponse
 from ..logic.storage import ImageKind, ImageMeta, ImageStore
-from ..logic.types import Route, Size, StepInput
+from ..logic.types import ModelId, Route, Size, StepInput
 from .masking import binarized_mask, paste_back
 from .models import Job, JobImage, JobState, JobStep, StepError, StepState
 from .routing import PREV, Limits
@@ -40,6 +40,7 @@ class RunStep:
     mask: str | None
     seed: int
     size: Size | None  # t2i output size; ref / mask follow their first image, measured when the step runs
+    model: ModelId = ModelId.QWEN_IMAGE_2_1
 
 
 @dataclass(slots=True)
@@ -204,7 +205,8 @@ class JobRunner:
         images = tuple(self._store.path(meta.id) for meta in metas)
         try:
             output = await self._backend.run(
-                StepInput(step.route, step.instruction, images, mask_png, step.seed, size), on_progress
+                StepInput(step.route, step.instruction, images, mask_png, step.seed, size, step.model),
+                on_progress,
             )
         except CleanupFailed as exc:
             # The image is good; only the backend's temporary files stayed behind. Keep the image, report the leftovers.

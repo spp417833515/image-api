@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 from imagegen.logic.comfy import graphs
 from imagegen.logic.comfy.config import ComfyConfig
-from imagegen.logic.types import Route, Size
+from imagegen.logic.types import ModelId, Route, Size
 
 CONFIG = ComfyConfig()
 
@@ -71,7 +71,18 @@ def test_text_to_image() -> None:
     for absent in ("LoadImage", "LoadImageMask", "VAEEncode", "SetLatentNoiseMask"):
         assert not nodes_of(graph, absent), absent
     assert not [k for k in graph["encode"]["inputs"] if k.startswith("images.")]
-    assert graph["encode"]["inputs"]["prompt"] == "p" and graph["encode"]["inputs"]["negative_prompt"] == ""
+    assert graph["encode"]["inputs"]["prompt"] == ["rewrite", 0]
+    assert graph["encode"]["inputs"]["negative_prompt"] == ""
+    assert graph["rewrite"]["inputs"]["prompt"] == "p"
+    assert graph["rewrite"]["inputs"]["thinking"] is True
+    assert graph["rewrite"]["inputs"]["sampling_mode.presence_penalty"] == 1.5
+    assert "image" not in graph["rewrite"]["inputs"]
+    assert "pe_batch" not in graph
+    assert graph["pe"]["inputs"] == {
+        "clip_name": "qwen3.5_9b_qwen_image_2.1_pe_t2i.int8_convrot.safetensors",
+        "type": "stable_diffusion",
+        "device": "default",
+    }
     assert_starts_from_an_empty_latent(graph)
     assert_common_tail(graph, model_from="unet")
 
@@ -84,6 +95,19 @@ def test_reference_edit_feeds_every_image_to_the_encoder_in_order() -> None:
     assert [graph[link[0]]["inputs"]["image"] for link in slots.values()] == ["a.png", "b.png", "c.png"]
     assert all(graph[link[0]]["class_type"] == "LoadImage" for link in slots.values())
     assert encode["resolution"] == 0  # images arrive pre-sized; image_1 must stay the latent's size
+    assert encode["prompt"] == ["rewrite", 0]
+    assert graph["rewrite"]["inputs"]["prompt"] == "p"
+    assert graph["rewrite"]["inputs"]["sampling_mode.presence_penalty"] == 0.0
+    assert graph["rewrite"]["inputs"]["system_prompt"].startswith("# Edit Prompt Enhancer")
+    assert graph["pe"]["inputs"] == {
+        "clip_name": "qwen3.5_9b_qwen_image_2.1_pe_i2i.int8_convrot.safetensors",
+        "type": "qwen_image",
+        "device": "default",
+    }
+    assert graph["rewrite"]["inputs"]["image"] == ["pe_batch", 0]
+    batch = graph["pe_batch"]["inputs"]
+    assert list(batch) == ["images.image0", "images.image1", "images.image2"]
+    assert [graph[link[0]]["inputs"]["image"] for link in batch.values()] == ["a.png", "b.png", "c.png"]
     assert_starts_from_an_empty_latent(graph)
     assert_common_tail(graph, model_from="unet")
 
@@ -109,6 +133,11 @@ def test_mask_rewrite_samples_from_the_base_latent_under_the_mask() -> None:
     assert encode["images.image_1"] == start["inputs"]["pixels"]  # the base is also the encoder's image_1
     assert graph[encode["images.image_2"][0]]["inputs"]["image"] == "ref.png"
     assert "images.image_3" not in encode
+    # The rewriter sees the base and the reference, not the mask.
+    assert graph["rewrite"]["inputs"]["image"] == ["pe_batch", 0]
+    assert list(graph["pe_batch"]["inputs"]) == ["images.image0", "images.image1"]
+    assert graph["pe_batch"]["inputs"]["images.image0"] == ["load_base", 0]
+    assert graph[graph["pe_batch"]["inputs"]["images.image1"][0]]["inputs"]["image"] == "ref.png"
     assert_common_tail(graph, model_from="unet")
 
 
@@ -137,3 +166,55 @@ def test_model_files_and_sampling_come_from_config() -> None:
 def test_wrong_inputs_for_a_route_fail_loudly(route: Route, images: tuple[str, ...], mask: str | None) -> None:
     with pytest.raises(ValueError, match=f"route {route} takes"):
         build(route, images=images, mask=mask)
+
+
+def flux(route: Route, images: tuple[str, ...] = (), mask: str | None = None):
+    return graphs.build(
+        CONFIG,
+        route,
+        prompt="p",
+        seed=9,
+        size=Size(960, 544),
+        images=images,
+        mask=mask,
+        output_prefix="imageapi_t_out",
+        model=ModelId.FLUX3_KLEIN,
+    )
+
+
+def test_flux3_klein_text_to_image_uses_the_distilled_int8_files() -> None:
+    graph = flux(Route.T2I)
+    assert graph["unet"]["inputs"]["unet_name"] == "flux3-image-klein-int8-convrot.safetensors"
+    assert graph["clip"]["inputs"] == {
+        "clip_name": "qwen3vl_4b_int8_convrot.safetensors",
+        "type": "flux3",
+        "device": "default",
+    }
+    assert graph["vae"]["inputs"]["vae_name"] == "flux2-vae.safetensors"
+    assert graph["encode"]["class_type"] == "CLIPTextEncode"
+    assert graph["encode"]["inputs"]["text"] == "p"
+    assert graph["latent"]["class_type"] == "EmptyFlux2LatentImage"
+    assert graph["latent"]["inputs"] == {"width": 960, "height": 544, "batch_size": 1}
+    sample = graph[graphs.SAMPLER]["inputs"]
+    assert sample["positive"] == ["encode", 0] and sample["negative"] == ["neg", 0]
+    assert sample["steps"] == 16 and sample["cfg"] == 1.0
+    assert sample["sampler_name"] == "euler" and sample["scheduler"] == "simple"
+    assert not nodes_of(graph, "TextEncodeQwenImage21")
+    assert "rewrite" not in graph
+    assert_links_resolve(graph)
+
+
+def test_flux3_klein_reference_and_mask_keep_the_output_size() -> None:
+    edited = flux(Route.REF, images=("a.png", "b.png"))
+    assert edited["refs"]["inputs"]["resolution"] == "resize"
+    assert edited["refs"]["inputs"]["resolution.megapixels"] == 1.0
+    assert edited["refs"]["inputs"]["images.image0"][0] == "load_1"
+    assert edited["refs"]["inputs"]["images.image1"][0] == "load_2"
+    assert edited[graphs.SAMPLER]["inputs"]["latent_image"] == ["latent", 0]
+    assert edited["latent"]["class_type"] == "EmptyFlux2LatentImage"
+    masked = flux(Route.MASK, images=("base.png",), mask="mask.png")
+    assert masked[graphs.SAMPLER]["inputs"]["latent_image"][0] == "noise_mask"
+    assert masked["refs"]["inputs"]["images.image0"][0] == "load_base"
+    assert "rewrite" not in edited and "rewrite" not in masked
+    assert_links_resolve(edited)
+    assert_links_resolve(masked)
